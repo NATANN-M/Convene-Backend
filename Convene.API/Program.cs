@@ -58,10 +58,10 @@ if (!string.IsNullOrEmpty(connectionString) && connectionString.StartsWith("post
     var user = userInfo[0];
     var password = userInfo.Length > 1 ? userInfo[1] : "";
     var host = uri.Host;
-    var port = uri.Port;
+    var dbPort = uri.Port;
     var database = uri.AbsolutePath.TrimStart('/');
 
-    connectionString = $"Host={host};Port={port};Database={database};Username={user};Password={password};SSL Mode=Require;Trust Server Certificate=true";
+    connectionString = $"Host={host};Port={dbPort};Database={database};Username={user};Password={password};SSL Mode=Require;Trust Server Certificate=true";
 }
 
 builder.Services.AddDbContext<ConveneDbContext>(options =>
