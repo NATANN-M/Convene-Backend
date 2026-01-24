@@ -1,7 +1,5 @@
-**
-.dockerignore
 .git
-.gitignore
+.dockerignore
 .vs
 .vscode
 bin/
