@@ -40,7 +40,8 @@ namespace Convene.Infrastructure.Services
                 {
                     Port = smtpPort,
                     Credentials = new NetworkCredential(senderEmail, senderPassword),
-                    EnableSsl = enableSsl
+                    EnableSsl = enableSsl,
+                    Timeout = 20000 // 20 seconds timeout (default is 100s)
                 };
 
                 using var mailMessage = new MailMessage
@@ -55,10 +56,15 @@ namespace Convene.Infrastructure.Services
 
                 await client.SendMailAsync(mailMessage);
             }
+            catch (SmtpException ex)
+            {
+                 // Specific SMTP error
+                 throw new InvalidOperationException($"SMTP Error (Port {(_configuration["Email:Port"] ?? "587")}): {ex.Message}", ex);
+            }
             catch (Exception ex)
             {
-                // Rethrow with details (inner exception will contain the SMTP error)
-                throw new InvalidOperationException($"Failed to send email to {toEmail}: {ex.Message}", ex);
+                // Rethrow with details
+                throw new InvalidOperationException($"Failed to send email: {ex.Message}", ex);
             }
         }
 
