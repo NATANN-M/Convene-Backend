@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Mail;
 using System.Threading.Tasks;
 using Convene.Application.Interfaces;
+using Resend;
 
 namespace Convene.Infrastructure.Services
 {
@@ -17,6 +18,42 @@ namespace Convene.Infrastructure.Services
 
         public async Task SendEmailAsync(string toEmail, string subject, string htmlBody)
         {
+            var environment = _configuration["ASPNETCORE_ENVIRONMENT"];
+            var resendApiKey = _configuration["Resend:ApiKey"];
+
+            if (environment == "Production" && !string.IsNullOrEmpty(resendApiKey))
+            {
+                await SendViaResendAsync(toEmail, subject, htmlBody, resendApiKey);
+            }
+            else
+            {
+                await SendViaSmtpAsync(toEmail, subject, htmlBody);
+            }
+        }
+
+        private async Task SendViaResendAsync(string toEmail, string subject, string htmlBody, string apiKey)
+        {
+            try
+            {
+                var resend = ResendClient.Create(apiKey);
+                var message = new Resend.EmailMessage
+                {
+                    From = "onboarding@resend.dev", // Note: In production you should use your verified domain
+                    To = toEmail,
+                    Subject = subject,
+                    HtmlBody = htmlBody
+                };
+
+                await resend.EmailSendAsync(message);
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException($"Resend API Error: {ex.Message}", ex);
+            }
+        }
+
+        private async Task SendViaSmtpAsync(string toEmail, string subject, string htmlBody)
+        {
             try
             {
                 var smtpServer = _configuration["Email:SmtpServer"];
@@ -28,16 +65,13 @@ namespace Convene.Infrastructure.Services
 
                 if (string.IsNullOrEmpty(smtpServer) || string.IsNullOrEmpty(senderEmail) || string.IsNullOrEmpty(senderPasswordRaw))
                 {
-                     throw new InvalidOperationException("Email settings are missing in configuration (SmtpServer, SenderEmail, or Password).");
+                    throw new InvalidOperationException("Email settings are missing in configuration (SmtpServer, SenderEmail, or Password).");
                 }
 
-                // Gmail App Passwords often contain spaces for readability
-                // Also strip literal quotes in case the user included them in the Render UI
                 var senderPassword = senderPasswordRaw.Replace(" ", "").Replace("\"", "").Replace("'", "").Trim();
                 var smtpPort = int.TryParse(portStr, out var p) ? p : 587;
                 var enableSsl = bool.TryParse(sslStr, out var ssl) ? ssl : true;
 
-                // Ensure TLS 1.2+ is used (required by Gmail)
                 ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | SecurityProtocolType.Tls13;
 
                 using var client = new SmtpClient(smtpServer)
@@ -47,35 +81,30 @@ namespace Convene.Infrastructure.Services
                     EnableSsl = enableSsl,
                     DeliveryMethod = SmtpDeliveryMethod.Network,
                     UseDefaultCredentials = false,
-                    Timeout = 15000 // 15 seconds
+                    Timeout = 15000
                 };
 
-                using var mailMessage = new MailAddress(senderEmail, senderName ?? "Convene") is var fromAddress
-                    ? new MailMessage
-                    {
-                        From = fromAddress,
-                        Subject = subject,
-                        Body = htmlBody,
-                        IsBodyHtml = true
-                    } : throw new InvalidOperationException("Invalid sender email address format.");
+                using var mailMessage = new MailMessage
+                {
+                    From = new MailAddress(senderEmail, senderName ?? "Convene"),
+                    Subject = subject,
+                    Body = htmlBody,
+                    IsBodyHtml = true
+                };
 
                 mailMessage.To.Add(toEmail);
-
                 await client.SendMailAsync(mailMessage);
             }
             catch (SmtpException ex)
             {
-                 // Specific SMTP error with more detail
-                 throw new InvalidOperationException($"SMTP Error (Port {(_configuration["Email:Port"] ?? "587")}): {ex.Message} Status: {ex.StatusCode}. {ex.InnerException?.Message}", ex);
+                throw new InvalidOperationException($"SMTP Error (Port {(_configuration["Email:Port"] ?? "587")}): {ex.Message} Status: {ex.StatusCode}. {ex.InnerException?.Message}", ex);
             }
             catch (Exception ex)
             {
-                // Rethrow with full hierarchy of messages
                 var fullMessage = ex.Message;
                 if (ex.InnerException != null) fullMessage += $" -> {ex.InnerException.Message}";
-                throw new InvalidOperationException($"Failed to send email: {fullMessage}", ex);
+                throw new InvalidOperationException($"Failed to send email via SMTP: {fullMessage}", ex);
             }
         }
-
     }
 }
