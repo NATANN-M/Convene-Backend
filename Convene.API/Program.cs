@@ -48,20 +48,30 @@ builder.Host.UseSerilog();
 // ------------------------------------------------------------
 //  Database Context
 // ------------------------------------------------------------
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+// ------------------------------------------------------------
+//  Database Context
+// ------------------------------------------------------------
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
+                      ?? Environment.GetEnvironmentVariable("DATABASE_URL");
 
-// Handle Render's URI format (postgres://user:pass@host:port/db)
-if (!string.IsNullOrEmpty(connectionString) && connectionString.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase))
+if (!string.IsNullOrEmpty(connectionString))
 {
-    var uri = new Uri(connectionString);
-    var userInfo = uri.UserInfo.Split(':');
-    var user = userInfo[0];
-    var password = userInfo.Length > 1 ? userInfo[1] : "";
-    var host = uri.Host;
-    var dbPort = uri.Port;
-    var database = uri.AbsolutePath.TrimStart('/');
+    connectionString = connectionString.Trim();
+    
+    // Handle Render's URI format (postgres:// or postgresql://)
+    if (connectionString.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) || 
+        connectionString.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
+    {
+        var uri = new Uri(connectionString);
+        var userInfo = uri.UserInfo.Split(':');
+        var user = userInfo[0];
+        var password = userInfo.Length > 1 ? userInfo[1] : "";
+        var host = uri.Host;
+        var dbPort = uri.Port > 0 ? uri.Port : 5432;
+        var database = uri.AbsolutePath.TrimStart('/');
 
-    connectionString = $"Host={host};Port={dbPort};Database={database};Username={user};Password={password};SSL Mode=Require;Trust Server Certificate=true";
+        connectionString = $"Host={host};Port={dbPort};Database={database};Username={user};Password={password};SSL Mode=Require;Trust Server Certificate=true";
+    }
 }
 
 builder.Services.AddDbContext<ConveneDbContext>(options =>
