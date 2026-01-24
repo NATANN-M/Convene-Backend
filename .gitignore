@@ -1,0 +1,63 @@
+## [Visual Studio]
+# User-specific files
+.vs/
+*.user
+*.userosscache
+*.sln.docstates
+
+# User-specific files (MonoDevelop/Xamarin Studio)
+*.userprefs
+
+# Mono auto-generated files
+mono_crash.*
+
+## [Build Results]
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+## [NuGet Packages]
+*.nupkg
+# The packages folder can be ignored because of Package Restore
+**/[Pp]ackages/*
+# except build/, which is used as an MSBuild target.
+!**/[Pp]ackages/build/
+# Uncomment if using NuGet 4.x+ project.assets.json files
+# project.assets.json
+# project.lock.json
+
+## [Others]
+# MSTest test Results
+[Tt]est[Rr]esults/
+[Bb]uild[Ll]og.*
+
+# NUnit
+*.VisualState.xml
+TestResult.xml
+nunit-*.xml
+
+# JetBrains Rider
+.idea/
+*.sln.iml
+
+# Visual Studio Code
+.vscode/
+
+# Local settings
+appsettings.json
+appsettings.Development.json
+appsettings.*.json
+!appsettings.Template.json
+
+# Linux/OSX
+.DS_Store
