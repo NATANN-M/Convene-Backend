@@ -48,9 +48,25 @@ builder.Host.UseSerilog();
 // ------------------------------------------------------------
 //  Database Context
 // ------------------------------------------------------------
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+
+// Handle Render's URI format (postgres://user:pass@host:port/db)
+if (!string.IsNullOrEmpty(connectionString) && connectionString.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase))
+{
+    var uri = new Uri(connectionString);
+    var userInfo = uri.UserInfo.Split(':');
+    var user = userInfo[0];
+    var password = userInfo.Length > 1 ? userInfo[1] : "";
+    var host = uri.Host;
+    var port = uri.Port;
+    var database = uri.AbsolutePath.TrimStart('/');
+
+    connectionString = $"Host={host};Port={port};Database={database};Username={user};Password={password};SSL Mode=Require;Trust Server Certificate=true";
+}
+
 builder.Services.AddDbContext<ConveneDbContext>(options =>
 {
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"));
+    options.UseNpgsql(connectionString);
 
     // Log only warnings or errors from SQL commands
     // options.LogTo(Log.Warning, new[] { "Microsoft.EntityFrameworkCore.Database.Command" }, LogLevel.Warning);
