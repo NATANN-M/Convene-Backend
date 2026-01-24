@@ -31,26 +31,33 @@ namespace Convene.Infrastructure.Services
                      throw new InvalidOperationException("Email settings are missing in configuration (SmtpServer, SenderEmail, or Password).");
                 }
 
-                // Gmail App Passwords often contain spaces for readability, but should be used without them
-                var senderPassword = senderPasswordRaw.Replace(" ", "").Trim();
+                // Gmail App Passwords often contain spaces for readability
+                // Also strip literal quotes in case the user included them in the Render UI
+                var senderPassword = senderPasswordRaw.Replace(" ", "").Replace("\"", "").Replace("'", "").Trim();
                 var smtpPort = int.TryParse(portStr, out var p) ? p : 587;
                 var enableSsl = bool.TryParse(sslStr, out var ssl) ? ssl : true;
+
+                // Ensure TLS 1.2+ is used (required by Gmail)
+                ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | SecurityProtocolType.Tls13;
 
                 using var client = new SmtpClient(smtpServer)
                 {
                     Port = smtpPort,
                     Credentials = new NetworkCredential(senderEmail, senderPassword),
                     EnableSsl = enableSsl,
-                    Timeout = 20000 // 20 seconds timeout (default is 100s)
+                    DeliveryMethod = SmtpDeliveryMethod.Network,
+                    UseDefaultCredentials = false,
+                    Timeout = 15000 // 15 seconds
                 };
 
-                using var mailMessage = new MailMessage
-                {
-                    From = new MailAddress(senderEmail, senderName ?? "Convene"),
-                    Subject = subject,
-                    Body = htmlBody,
-                    IsBodyHtml = true
-                };
+                using var mailMessage = new MailAddress(senderEmail, senderName ?? "Convene") is var fromAddress
+                    ? new MailMessage
+                    {
+                        From = fromAddress,
+                        Subject = subject,
+                        Body = htmlBody,
+                        IsBodyHtml = true
+                    } : throw new InvalidOperationException("Invalid sender email address format.");
 
                 mailMessage.To.Add(toEmail);
 
@@ -58,13 +65,15 @@ namespace Convene.Infrastructure.Services
             }
             catch (SmtpException ex)
             {
-                 // Specific SMTP error
-                 throw new InvalidOperationException($"SMTP Error (Port {(_configuration["Email:Port"] ?? "587")}): {ex.Message}", ex);
+                 // Specific SMTP error with more detail
+                 throw new InvalidOperationException($"SMTP Error (Port {(_configuration["Email:Port"] ?? "587")}): {ex.Message} Status: {ex.StatusCode}. {ex.InnerException?.Message}", ex);
             }
             catch (Exception ex)
             {
-                // Rethrow with details
-                throw new InvalidOperationException($"Failed to send email: {ex.Message}", ex);
+                // Rethrow with full hierarchy of messages
+                var fullMessage = ex.Message;
+                if (ex.InnerException != null) fullMessage += $" -> {ex.InnerException.Message}";
+                throw new InvalidOperationException($"Failed to send email: {fullMessage}", ex);
             }
         }
 
