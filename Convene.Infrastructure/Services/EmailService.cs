@@ -35,10 +35,10 @@ namespace Convene.Infrastructure.Services
         {
             try
             {
-                var resend = new ResendClient(apiKey);
+                IResend resend = ResendClient.Create(apiKey);
                 var message = new Resend.EmailMessage
                 {
-                    From = "onboarding@resend.dev", // Note: In production you should use your verified domain
+                    From = "onboarding@resend.dev", // Note: In production you should use  verified domain
                     To = toEmail,
                     Subject = subject,
                     HtmlBody = htmlBody
