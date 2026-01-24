@@ -1,0 +1,15 @@
+**
+.dockerignore
+.git
+.gitignore
+.vs
+.vscode
+bin/
+obj/
+out/
+appsettings.Development.json
+appsettings.local.json
+*.db
+*.db-journal
+*.sqlite
+node_modules/
