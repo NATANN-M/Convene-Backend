@@ -1,19 +1,24 @@
 using Microsoft.Extensions.Configuration;
 using System.Net;
 using System.Net.Mail;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Convene.Application.Interfaces;
-using Resend;
 
 namespace Convene.Infrastructure.Services
 {
     public class EmailService : IEmailService
     {
         private readonly IConfiguration _configuration;
+        private readonly IHttpClientFactory _httpClientFactory;
 
-        public EmailService(IConfiguration configuration)
+        public EmailService(IConfiguration configuration, IHttpClientFactory httpClientFactory)
         {
             _configuration = configuration;
+            _httpClientFactory = httpClientFactory;
         }
 
         public async Task SendEmailAsync(string toEmail, string subject, string htmlBody)
@@ -23,7 +28,7 @@ namespace Convene.Infrastructure.Services
 
             if (environment == "Production" && !string.IsNullOrEmpty(resendApiKey))
             {
-                await SendViaResendAsync(toEmail, subject, htmlBody, resendApiKey);
+                await SendViaResendApiAsync(toEmail, subject, htmlBody, resendApiKey);
             }
             else
             {
@@ -31,24 +36,33 @@ namespace Convene.Infrastructure.Services
             }
         }
 
-        private async Task SendViaResendAsync(string toEmail, string subject, string htmlBody, string apiKey)
+        private async Task SendViaResendApiAsync(string toEmail, string subject, string htmlBody, string apiKey)
         {
             try
             {
-                IResend resend = ResendClient.Create(apiKey);
-                var message = new Resend.EmailMessage
+                using var client = _httpClientFactory.CreateClient();
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+
+                var payload = new
                 {
-                    From = "onboarding@resend.dev", // Note: In production you should use  verified domain
-                    To = toEmail,
-                    Subject = subject,
-                    HtmlBody = htmlBody
+                    from = "onboarding@resend.dev",
+                    to = new[] { toEmail },
+                    subject = subject,
+                    html = htmlBody
                 };
 
-                await resend.EmailSendAsync(message);
+                var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+                var response = await client.PostAsync("https://api.resend.com/emails", content);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var error = await response.Content.ReadAsStringAsync();
+                    throw new InvalidOperationException($"Resend API Error ({response.StatusCode}): {error}");
+                }
             }
             catch (Exception ex)
             {
-                throw new InvalidOperationException($"Resend API Error: {ex.Message}", ex);
+                throw new InvalidOperationException($"Resend delivery failed: {ex.Message}", ex);
             }
         }
 
