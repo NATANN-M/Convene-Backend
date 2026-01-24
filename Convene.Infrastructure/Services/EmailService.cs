@@ -19,19 +19,22 @@ namespace Convene.Infrastructure.Services
         {
             try
             {
-                // Simple console output for now. Replace with real email logic later.
-                Console.WriteLine($"Sending Email to {toEmail}");
-                Console.WriteLine($"Subject: {subject}");
-                Console.WriteLine($"Body: {htmlBody}");
-                await Task.CompletedTask;
-
-
                 var smtpServer = _configuration["Email:SmtpServer"];
-                var smtpPort = int.Parse(_configuration["Email:Port"]);
+                var portStr = _configuration["Email:Port"];
                 var senderEmail = _configuration["Email:SenderEmail"];
                 var senderName = _configuration["Email:SenderName"];
-                var senderPassword = _configuration["Email:Password"];
-                var enableSsl = bool.Parse(_configuration["Email:EnableSsl"]);
+                var senderPasswordRaw = _configuration["Email:Password"];
+                var sslStr = _configuration["Email:EnableSsl"];
+
+                if (string.IsNullOrEmpty(smtpServer) || string.IsNullOrEmpty(senderEmail) || string.IsNullOrEmpty(senderPasswordRaw))
+                {
+                     throw new InvalidOperationException("Email settings are missing in configuration (SmtpServer, SenderEmail, or Password).");
+                }
+
+                // Gmail App Passwords often contain spaces for readability, but should be used without them
+                var senderPassword = senderPasswordRaw.Replace(" ", "").Trim();
+                var smtpPort = int.TryParse(portStr, out var p) ? p : 587;
+                var enableSsl = bool.TryParse(sslStr, out var ssl) ? ssl : true;
 
                 using var client = new SmtpClient(smtpServer)
                 {
@@ -42,7 +45,7 @@ namespace Convene.Infrastructure.Services
 
                 using var mailMessage = new MailMessage
                 {
-                    From = new MailAddress(senderEmail, senderName),
+                    From = new MailAddress(senderEmail, senderName ?? "Convene"),
                     Subject = subject,
                     Body = htmlBody,
                     IsBodyHtml = true
@@ -54,8 +57,8 @@ namespace Convene.Infrastructure.Services
             }
             catch (Exception ex)
             {
-                // You can log this or rethrow for middleware to catch
-                throw new InvalidOperationException("Failed to send email", ex);
+                // Rethrow with details (inner exception will contain the SMTP error)
+                throw new InvalidOperationException($"Failed to send email to {toEmail}: {ex.Message}", ex);
             }
         }
 
