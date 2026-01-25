@@ -26,12 +26,13 @@ namespace Convene.Infrastructure.Services
 
         public async Task SendEmailAsync(string toEmail, string subject, string htmlBody)
         {
-            var refreshToken = _configuration["Gmail:RefreshToken"];
-            var useGmailApi = !string.IsNullOrEmpty(refreshToken);
+            var brevoApiKey = _configuration["Brevo:ApiKey"];
+            var environment = _configuration["ASPNETCORE_ENVIRONMENT"];
 
-            if (useGmailApi)
+            // Use Brevo API in Production or if API Key is explicitly provided
+            if (environment == "Production" || !string.IsNullOrEmpty(brevoApiKey))
             {
-                await SendViaGmailApiAsync(toEmail, subject, htmlBody);
+                await SendViaBrevoApiAsync(toEmail, subject, htmlBody);
             }
             else
             {
@@ -39,81 +40,41 @@ namespace Convene.Infrastructure.Services
             }
         }
 
-        private async Task SendViaGmailApiAsync(string toEmail, string subject, string htmlBody)
+        private async Task SendViaBrevoApiAsync(string toEmail, string subject, string htmlBody)
         {
             try
             {
-                var clientId = _configuration["Gmail:ClientId"]?.Replace("\"", "").Replace("'", "").Trim();
-                var clientSecret = _configuration["Gmail:ClientSecret"]?.Replace("\"", "").Replace("'", "").Trim();
-                var refreshToken = _configuration["Gmail:RefreshToken"]?.Replace("\"", "").Replace("'", "").Trim();
-                var senderEmail = (_configuration["Email:SenderEmail"] ?? "natisew123@gmail.com").Replace("\"", "").Trim();
+                var apiKey = (_configuration["Brevo:ApiKey"] ?? "").Trim();
+                var fromEmail = _configuration["Brevo:FromEmail"] ?? "natisew123@gmail.com";
+                var fromName = _configuration["Email:SenderName"] ?? "Convene";
 
-                if (string.IsNullOrEmpty(clientId) || string.IsNullOrEmpty(clientSecret) || string.IsNullOrEmpty(refreshToken))
-                {
-                    throw new InvalidOperationException("Gmail API credentials (ClientId, ClientSecret, or RefreshToken) are missing.");
-                }
-
-                // Step 1: Get Access Token using Refresh Token
                 using var client = _httpClientFactory.CreateClient();
-                var refreshPayload = new Dictionary<string, string>
+                client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                client.DefaultRequestHeaders.Add("api-key", apiKey);
+
+                var payload = new
                 {
-                    { "client_id", clientId },
-                    { "client_secret", clientSecret },
-                    { "refresh_token", refreshToken },
-                    { "grant_type", "refresh_token" }
+                    sender = new { name = fromName, email = fromEmail },
+                    to = new[] { new { email = toEmail } },
+                    subject = subject,
+                    htmlContent = htmlBody
                 };
 
-                var refreshResponse = await client.PostAsync("https://oauth2.googleapis.com/token", new FormUrlEncodedContent(refreshPayload));
-                var refreshResult = await refreshResponse.Content.ReadAsStringAsync();
+                var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+                var response = await client.PostAsync("https://api.brevo.com/v3/smtp/email", content);
 
-                if (!refreshResponse.IsSuccessStatusCode)
+                if (!response.IsSuccessStatusCode)
                 {
-                    _logger.LogError("Gmail Token Refresh Failed: {Error}", refreshResult);
-                    throw new InvalidOperationException($"Gmail API Token Error: {refreshResult}. Your Refresh Token may have expired or was revoked.");
+                    var error = await response.Content.ReadAsStringAsync();
+                    throw new InvalidOperationException($"Brevo API Error ({response.StatusCode}): {error}");
                 }
 
-                using var doc = JsonDocument.Parse(refreshResult);
-                var accessToken = doc.RootElement.GetProperty("access_token").GetString();
-
-                // Step 2: Construct MIME Message
-                var mailMessage = new MailMessage
-                {
-                    From = new MailAddress(senderEmail),
-                    Subject = subject,
-                    Body = htmlBody,
-                    IsBodyHtml = true
-                };
-                mailMessage.To.Add(toEmail);
-
-                var mimeMessage = MimeKit.MimeMessage.CreateFromMailMessage(mailMessage);
-                
-                string base64Raw;
-                using (var stream = new System.IO.MemoryStream())
-                {
-                    mimeMessage.WriteTo(stream);
-                    base64Raw = Convert.ToBase64String(stream.ToArray())
-                        .Replace('+', '-').Replace('/', '_').Replace("=", "");
-                }
-
-                // Step 3: Send Email via API
-                var sendPayload = new { raw = base64Raw };
-                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-                
-                var sendContent = new StringContent(JsonSerializer.Serialize(sendPayload), Encoding.UTF8, "application/json");
-                var sendResponse = await client.PostAsync("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", sendContent);
-
-                if (!sendResponse.IsSuccessStatusCode)
-                {
-                    var sendError = await sendResponse.Content.ReadAsStringAsync();
-                    throw new InvalidOperationException($"Gmail API Send Error: {sendError}");
-                }
-
-                _logger.LogInformation("Email successfully sent via Gmail API to {ToEmail}", toEmail);
+                _logger.LogInformation("Email successfully sent via Brevo API to {ToEmail}", toEmail);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Gmail Service Error");
-                throw;
+                _logger.LogError(ex, "Brevo Service Error");
+                throw new InvalidOperationException($"Brevo Delivery Failed: {ex.Message}", ex);
             }
         }
 
