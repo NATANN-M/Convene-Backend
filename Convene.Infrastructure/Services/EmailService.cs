@@ -1,34 +1,37 @@
 using Microsoft.Extensions.Configuration;
 using System.Net;
 using System.Net.Mail;
-using System.Net.Http;
-using System.Net.Http.Headers;
-using System.Text;
-using System.Text.Json;
 using System.Threading.Tasks;
 using Convene.Application.Interfaces;
+using Google.Apis.Auth.OAuth2;
+using Google.Apis.Auth.OAuth2.Flows;
+using Google.Apis.Auth.OAuth2.Responses;
+using Google.Apis.Gmail.v1;
+using Google.Apis.Services;
+using Google.Apis.Util.Store;
+using Microsoft.Extensions.Logging;
+using System.Text;
 
 namespace Convene.Infrastructure.Services
 {
     public class EmailService : IEmailService
     {
         private readonly IConfiguration _configuration;
-        private readonly IHttpClientFactory _httpClientFactory;
+        private readonly ILogger<EmailService> _logger;
 
-        public EmailService(IConfiguration configuration, IHttpClientFactory httpClientFactory)
+        public EmailService(IConfiguration configuration, ILogger<EmailService> logger)
         {
             _configuration = configuration;
-            _httpClientFactory = httpClientFactory;
+            _logger = logger;
         }
 
         public async Task SendEmailAsync(string toEmail, string subject, string htmlBody)
         {
-            var environment = _configuration["ASPNETCORE_ENVIRONMENT"];
-            var resendApiKey = _configuration["Resend:ApiKey"];
+            var useGmailApi = !string.IsNullOrEmpty(_configuration["Gmail:RefreshToken"]);
 
-            if (environment == "Production" && !string.IsNullOrEmpty(resendApiKey))
+            if (useGmailApi)
             {
-                await SendViaResendApiAsync(toEmail, subject, htmlBody, resendApiKey);
+                await SendViaGmailApiAsync(toEmail, subject, htmlBody);
             }
             else
             {
@@ -36,33 +39,50 @@ namespace Convene.Infrastructure.Services
             }
         }
 
-        private async Task SendViaResendApiAsync(string toEmail, string subject, string htmlBody, string apiKey)
+        private async Task SendViaGmailApiAsync(string toEmail, string subject, string htmlBody)
         {
             try
             {
-                using var client = _httpClientFactory.CreateClient();
-                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+                var clientId = _configuration["Gmail:ClientId"];
+                var clientSecret = _configuration["Gmail:ClientSecret"];
+                var refreshToken = _configuration["Gmail:RefreshToken"];
+                var senderEmail = _configuration["Email:SenderEmail"] ;
 
-                var payload = new
+                var tokenResponse = new TokenResponse { RefreshToken = refreshToken };
+                var credentials = new UserCredential(new GoogleAuthorizationCodeFlow(
+                    new GoogleAuthorizationCodeFlow.Initializer
+                    {
+                        ClientSecrets = new ClientSecrets { ClientId = clientId, ClientSecret = clientSecret }
+                    }), "user", tokenResponse);
+
+                var service = new GmailService(new BaseClientService.Initializer
                 {
-                    from = "onboarding@resend.dev",
-                    to = new[] { toEmail },
-                    subject = subject,
-                    html = htmlBody
+                    HttpClientInitializer = credentials,
+                    ApplicationName = "Convene"
+                });
+
+                var mailMessage = new MailMessage
+                {
+                    From = new MailAddress(senderEmail),
+                    Subject = subject,
+                    Body = htmlBody,
+                    IsBodyHtml = true
+                };
+                mailMessage.To.Add(toEmail);
+
+                var mimeMessage = MimeKit.MimeMessage.CreateFromMailMessage(mailMessage);
+                var message = new Google.Apis.Gmail.v1.Data.Message
+                {
+                    Raw = Convert.ToBase64String(Encoding.UTF8.GetBytes(mimeMessage.ToString()))
+                        .Replace('+', '-').Replace('/', '_').Replace("=", "")
                 };
 
-                var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-                var response = await client.PostAsync("https://api.resend.com/emails", content);
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    var error = await response.Content.ReadAsStringAsync();
-                    throw new InvalidOperationException($"Resend API Error ({response.StatusCode}): {error}");
-                }
+                await service.Users.Messages.Send(message, "me").ExecuteAsync();
             }
             catch (Exception ex)
             {
-                throw new InvalidOperationException($"Resend delivery failed: {ex.Message}", ex);
+                _logger.LogError(ex, "Failed to send email via Gmail API");
+                throw new InvalidOperationException($"Gmail API Error: {ex.Message}", ex);
             }
         }
 
@@ -95,7 +115,7 @@ namespace Convene.Infrastructure.Services
                     EnableSsl = enableSsl,
                     DeliveryMethod = SmtpDeliveryMethod.Network,
                     UseDefaultCredentials = false,
-                    Timeout = 15000
+                    Timeout = 20000
                 };
 
                 using var mailMessage = new MailMessage
