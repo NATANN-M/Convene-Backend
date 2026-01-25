@@ -157,18 +157,50 @@ builder.Services.AddScoped<ICoverGenerationService, CoverGenerationService>();
 
 
 // ------------------------------------------------------------
-//  CORS (Allow All Frontends - Development Mode)
+//  CORS (Dynamic Configuration)
 // ------------------------------------------------------------
 builder.Services.AddCors(options =>
 {
-    var frontendUrl = builder.Configuration["FrontendUrl"] ?? "http://localhost:5173";
+    var allowedOriginsConfig = (builder.Configuration["CORS:AllowedOrigins"] ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries);
+    var frontendUrlConfig = (builder.Configuration["FrontendUrl"] ?? "").Trim();
+    
     options.AddPolicy("AllowAll", policy =>
     {
+        var origins = new HashSet<string>(StringComparer.OrdinalIgnoreCase) 
+        { 
+            "http://localhost:5173", 
+            "http://localhost:3000"
+        };
+
+        // Helper to sanitize origins
+        void AddSanitizedOrigin(string origin)
+        {
+            var clean = origin.Trim().TrimEnd('/');
+            if (string.IsNullOrEmpty(clean)) return;
+
+            // If user forgot https://, add it (unless it's localhost)
+            if (!clean.StartsWith("http://") && !clean.StartsWith("https://"))
+            {
+                clean = "https://" + clean;
+            }
+            origins.Add(clean);
+        }
+
+        // Add from CORS:AllowedOrigins
+        foreach (var origin in allowedOriginsConfig)
+        {
+            AddSanitizedOrigin(origin);
+        }
+
+        // Add from FrontendUrl (Fallback)
+        AddSanitizedOrigin(frontendUrlConfig);
+
         policy
-            .WithOrigins("http://localhost:5173", "http://localhost:3000", frontendUrl) // Allow local and configured frontend URL
+            .WithOrigins(origins.ToArray())
             .AllowAnyMethod()
             .AllowAnyHeader()
-            .AllowCredentials(); // Required for SignalR
+            .AllowCredentials()
+            .SetIsOriginAllowedToAllowWildcardSubdomains();
     });
 });
 
