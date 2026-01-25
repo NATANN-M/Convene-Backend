@@ -3,14 +3,11 @@ using System.Net;
 using System.Net.Mail;
 using System.Threading.Tasks;
 using Convene.Application.Interfaces;
-using Google.Apis.Auth.OAuth2;
-using Google.Apis.Auth.OAuth2.Flows;
-using Google.Apis.Auth.OAuth2.Responses;
-using Google.Apis.Gmail.v1;
-using Google.Apis.Services;
-using Google.Apis.Util.Store;
 using Microsoft.Extensions.Logging;
 using System.Text;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text.Json;
 
 namespace Convene.Infrastructure.Services
 {
@@ -18,16 +15,19 @@ namespace Convene.Infrastructure.Services
     {
         private readonly IConfiguration _configuration;
         private readonly ILogger<EmailService> _logger;
+        private readonly IHttpClientFactory _httpClientFactory;
 
-        public EmailService(IConfiguration configuration, ILogger<EmailService> logger)
+        public EmailService(IConfiguration configuration, ILogger<EmailService> logger, IHttpClientFactory httpClientFactory)
         {
             _configuration = configuration;
             _logger = logger;
+            _httpClientFactory = httpClientFactory;
         }
 
         public async Task SendEmailAsync(string toEmail, string subject, string htmlBody)
         {
-            var useGmailApi = !string.IsNullOrEmpty(_configuration["Gmail:RefreshToken"]);
+            var refreshToken = _configuration["Gmail:RefreshToken"];
+            var useGmailApi = !string.IsNullOrEmpty(refreshToken);
 
             if (useGmailApi)
             {
@@ -53,29 +53,29 @@ namespace Convene.Infrastructure.Services
                     throw new InvalidOperationException("Gmail API credentials (ClientId, ClientSecret, or RefreshToken) are missing.");
                 }
 
-                _logger.LogInformation("Attempting Gmail API send. ClientId: {ClientId}...", clientId.Substring(0, 10));
-
-                var tokenResponse = new TokenResponse 
-                { 
-                    RefreshToken = refreshToken,
-                    IssuedUtc = DateTime.UtcNow // Force update
+                // Step 1: Get Access Token using Refresh Token
+                using var client = _httpClientFactory.CreateClient();
+                var refreshPayload = new Dictionary<string, string>
+                {
+                    { "client_id", clientId },
+                    { "client_secret", clientSecret },
+                    { "refresh_token", refreshToken },
+                    { "grant_type", "refresh_token" }
                 };
 
-                var flow = new GoogleAuthorizationCodeFlow(new GoogleAuthorizationCodeFlow.Initializer
+                var refreshResponse = await client.PostAsync("https://oauth2.googleapis.com/token", new FormUrlEncodedContent(refreshPayload));
+                var refreshResult = await refreshResponse.Content.ReadAsStringAsync();
+
+                if (!refreshResponse.IsSuccessStatusCode)
                 {
-                    ClientSecrets = new ClientSecrets { ClientId = clientId, ClientSecret = clientSecret },
-                    Scopes = new[] { GmailService.Scope.GmailSend }
-                });
+                    _logger.LogError("Gmail Token Refresh Failed: {Error}", refreshResult);
+                    throw new InvalidOperationException($"Gmail API Token Error: {refreshResult}. Your Refresh Token may have expired or was revoked.");
+                }
 
-                var credentials = new UserCredential(flow, "user", tokenResponse);
+                using var doc = JsonDocument.Parse(refreshResult);
+                var accessToken = doc.RootElement.GetProperty("access_token").GetString();
 
-                var service = new GmailService(new BaseClientService.Initializer
-                {
-                    HttpClientInitializer = credentials,
-                    ApplicationName = "Convene"
-                });
-
-                // Create the MIME message correctly
+                // Step 2: Construct MIME Message
                 var mailMessage = new MailMessage
                 {
                     From = new MailAddress(senderEmail),
@@ -87,23 +87,33 @@ namespace Convene.Infrastructure.Services
 
                 var mimeMessage = MimeKit.MimeMessage.CreateFromMailMessage(mailMessage);
                 
-                string rawMessage;
+                string base64Raw;
                 using (var stream = new System.IO.MemoryStream())
                 {
                     mimeMessage.WriteTo(stream);
-                    rawMessage = Convert.ToBase64String(stream.ToArray())
+                    base64Raw = Convert.ToBase64String(stream.ToArray())
                         .Replace('+', '-').Replace('/', '_').Replace("=", "");
                 }
 
-                var message = new Google.Apis.Gmail.v1.Data.Message { Raw = rawMessage };
+                // Step 3: Send Email via API
+                var sendPayload = new { raw = base64Raw };
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+                
+                var sendContent = new StringContent(JsonSerializer.Serialize(sendPayload), Encoding.UTF8, "application/json");
+                var sendResponse = await client.PostAsync("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", sendContent);
 
-                await service.Users.Messages.Send(message, "me").ExecuteAsync();
-                _logger.LogInformation("Email sent successfully via Gmail API to {ToEmail}", toEmail);
+                if (!sendResponse.IsSuccessStatusCode)
+                {
+                    var sendError = await sendResponse.Content.ReadAsStringAsync();
+                    throw new InvalidOperationException($"Gmail API Send Error: {sendError}");
+                }
+
+                _logger.LogInformation("Email successfully sent via Gmail API to {ToEmail}", toEmail);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to send email via Gmail API");
-                throw new InvalidOperationException($"Gmail API Error: {ex.Message}. Check if your Refresh Token is still valid.", ex);
+                _logger.LogError(ex, "Gmail Service Error");
+                throw;
             }
         }
 
