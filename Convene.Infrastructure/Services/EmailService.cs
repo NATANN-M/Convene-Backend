@@ -43,17 +43,31 @@ namespace Convene.Infrastructure.Services
         {
             try
             {
-                var clientId = _configuration["Gmail:ClientId"];
-                var clientSecret = _configuration["Gmail:ClientSecret"];
-                var refreshToken = _configuration["Gmail:RefreshToken"];
-                var senderEmail = _configuration["Email:SenderEmail"] ;
+                var clientId = _configuration["Gmail:ClientId"]?.Replace("\"", "").Replace("'", "").Trim();
+                var clientSecret = _configuration["Gmail:ClientSecret"]?.Replace("\"", "").Replace("'", "").Trim();
+                var refreshToken = _configuration["Gmail:RefreshToken"]?.Replace("\"", "").Replace("'", "").Trim();
+                var senderEmail = (_configuration["Email:SenderEmail"] ?? "natisew123@gmail.com").Replace("\"", "").Trim();
 
-                var tokenResponse = new TokenResponse { RefreshToken = refreshToken };
-                var credentials = new UserCredential(new GoogleAuthorizationCodeFlow(
-                    new GoogleAuthorizationCodeFlow.Initializer
-                    {
-                        ClientSecrets = new ClientSecrets { ClientId = clientId, ClientSecret = clientSecret }
-                    }), "user", tokenResponse);
+                if (string.IsNullOrEmpty(clientId) || string.IsNullOrEmpty(clientSecret) || string.IsNullOrEmpty(refreshToken))
+                {
+                    throw new InvalidOperationException("Gmail API credentials (ClientId, ClientSecret, or RefreshToken) are missing.");
+                }
+
+                _logger.LogInformation("Attempting Gmail API send. ClientId: {ClientId}...", clientId.Substring(0, 10));
+
+                var tokenResponse = new TokenResponse 
+                { 
+                    RefreshToken = refreshToken,
+                    IssuedUtc = DateTime.UtcNow // Force update
+                };
+
+                var flow = new GoogleAuthorizationCodeFlow(new GoogleAuthorizationCodeFlow.Initializer
+                {
+                    ClientSecrets = new ClientSecrets { ClientId = clientId, ClientSecret = clientSecret },
+                    Scopes = new[] { GmailService.Scope.GmailSend }
+                });
+
+                var credentials = new UserCredential(flow, "user", tokenResponse);
 
                 var service = new GmailService(new BaseClientService.Initializer
                 {
@@ -61,6 +75,7 @@ namespace Convene.Infrastructure.Services
                     ApplicationName = "Convene"
                 });
 
+                // Create the MIME message correctly
                 var mailMessage = new MailMessage
                 {
                     From = new MailAddress(senderEmail),
@@ -71,18 +86,24 @@ namespace Convene.Infrastructure.Services
                 mailMessage.To.Add(toEmail);
 
                 var mimeMessage = MimeKit.MimeMessage.CreateFromMailMessage(mailMessage);
-                var message = new Google.Apis.Gmail.v1.Data.Message
+                
+                string rawMessage;
+                using (var stream = new System.IO.MemoryStream())
                 {
-                    Raw = Convert.ToBase64String(Encoding.UTF8.GetBytes(mimeMessage.ToString()))
-                        .Replace('+', '-').Replace('/', '_').Replace("=", "")
-                };
+                    mimeMessage.WriteTo(stream);
+                    rawMessage = Convert.ToBase64String(stream.ToArray())
+                        .Replace('+', '-').Replace('/', '_').Replace("=", "");
+                }
+
+                var message = new Google.Apis.Gmail.v1.Data.Message { Raw = rawMessage };
 
                 await service.Users.Messages.Send(message, "me").ExecuteAsync();
+                _logger.LogInformation("Email sent successfully via Gmail API to {ToEmail}", toEmail);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to send email via Gmail API");
-                throw new InvalidOperationException($"Gmail API Error: {ex.Message}", ex);
+                throw new InvalidOperationException($"Gmail API Error: {ex.Message}. Check if your Refresh Token is still valid.", ex);
             }
         }
 
