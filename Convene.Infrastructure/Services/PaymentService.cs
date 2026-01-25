@@ -25,7 +25,8 @@ namespace Convene.Infrastructure.Services
         private readonly IBookingService _bookingService;
         private readonly INotificationService _notificationService;
         private readonly IBackgroundTaskQueue _backgroundTaskQueue;
-        private readonly ICreditService _creditService;
+        private readonly ILogger<PaymentService> _logger;
+
         public PaymentService(
             ConveneDbContext context,
             IHttpClientFactory httpClientFactory,
@@ -34,7 +35,8 @@ namespace Convene.Infrastructure.Services
             IBookingService bookingService,
             INotificationService notificationService,
             IBackgroundTaskQueue backgroundTaskQueue,
-            ICreditService creditService)
+            ICreditService creditService,
+            ILogger<PaymentService> logger)
         {
             _context = context;
             _httpClient = httpClientFactory.CreateClient();
@@ -44,6 +46,7 @@ namespace Convene.Infrastructure.Services
             _notificationService = notificationService;
             _backgroundTaskQueue = backgroundTaskQueue;
             _creditService = creditService;
+            _logger = logger;
         }
 
         public async Task<PaymentResultDto> InitializePaymentAsync(InitializePaymentRequest request)
@@ -330,23 +333,33 @@ namespace Convene.Infrastructure.Services
             };
             httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
 
-            var response = await _httpClient.SendAsync(httpRequest);
+            try 
+            {
+                var response = await _httpClient.SendAsync(httpRequest);
+                var content = await response.Content.ReadAsStringAsync();
 
-            var content = await response.Content.ReadAsStringAsync();
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.LogError("Chapa initialization failed. Status: {Status}. Content: {Content}", response.StatusCode, content);
+                    throw new Exception($"Chapa initialization failed (Status: {response.StatusCode}): {content}");
+                }
 
-            if (!response.IsSuccessStatusCode)
-                throw new Exception($"Chapa error: {content}");
+                // 5. Parse response
+                var json = JsonDocument.Parse(content);
+                var checkoutUrl = json.RootElement
+                    .GetProperty("data")
+                    .GetProperty("checkout_url")
+                    .GetString();
 
-            // 5. Parse response
-            var json = JsonDocument.Parse(content);
-            var checkoutUrl = json.RootElement
-                .GetProperty("data")
-                .GetProperty("checkout_url")
-                .GetString();
-
-            // 6. Save payment info
-            tx.PaymentReference = paymentReference;
-            tx.ChapaCheckoutUrl = checkoutUrl;
+                // 6. Save payment info
+                tx.PaymentReference = paymentReference;
+                tx.ChapaCheckoutUrl = checkoutUrl;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogCritical(ex, "Chapa Critical Exception during initialization");
+                throw;
+            }
 
             await _context.SaveChangesAsync();
 

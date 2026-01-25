@@ -50,8 +50,15 @@ namespace Convene.API.Controllers
         [Authorize(Roles = "Organizer,SuperAdmin")]
         public async Task<IActionResult> InitializeCreditPurchase([FromQuery] Guid creditTransactionId)
         {
-            var result = await _paymentService.InitializeCreditPurchaseAsync(creditTransactionId);
-            return Ok(result);
+            try
+            {
+                var result = await _paymentService.InitializeCreditPurchaseAsync(creditTransactionId);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { error = ex.Message });
+            }
         }
 
         [HttpGet("credit/callback")]
