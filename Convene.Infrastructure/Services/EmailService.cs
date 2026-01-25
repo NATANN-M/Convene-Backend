@@ -44,9 +44,16 @@ namespace Convene.Infrastructure.Services
         {
             try
             {
-                var apiKey = (_configuration["Brevo:ApiKey"] ?? "").Trim();
-                var fromEmail = _configuration["Brevo:FromEmail"] ?? "natisew123@gmail.com";
-                var fromName = _configuration["Email:SenderName"] ?? "Convene";
+                var apiKey = (_configuration["Brevo:ApiKey"] ?? "").Replace("\"", "").Replace("'", "").Trim();
+                var fromEmail = (_configuration["Brevo:FromEmail"] ?? "natisew123@gmail.com").Replace("\"", "").Trim();
+                var fromName = (_configuration["Email:SenderName"] ?? "Convene").Replace("\"", "").Trim();
+
+                if (string.IsNullOrEmpty(apiKey))
+                {
+                    throw new InvalidOperationException("Brevo API Key is missing from configuration.");
+                }
+
+                _logger.LogInformation("Attempting Brevo API send. Key length: {Length}", apiKey.Length);
 
                 using var client = _httpClientFactory.CreateClient();
                 client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
