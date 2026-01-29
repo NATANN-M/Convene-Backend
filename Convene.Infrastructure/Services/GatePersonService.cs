@@ -17,8 +17,15 @@ public class GatePersonService : IGatePersonService
 
     public async Task<List<AssignmentEventDto>> GetEventsForAssignmentAsync(Guid organizerId)
     {
+        var now = DateTime.UtcNow;
+
         return await _context.Events
-            .Where(e => e.OrganizerId == organizerId && e.Status == EventStatus.Published)
+            .Where(e =>
+                e.OrganizerId == organizerId &&
+                e.EndDate > now) // include both Published and Draft but not ended
+            .OrderByDescending(e => e.Status == EventStatus.Published) // Published first, Draft last
+            .ThenBy(e => e.StartDate)                                 // upcoming first
+            .ThenByDescending(e => e.CreatedAt)                      // stable fallback
             .Select(e => new AssignmentEventDto
             {
                 EventId = e.Id,
@@ -26,6 +33,9 @@ public class GatePersonService : IGatePersonService
             })
             .ToListAsync();
     }
+
+
+
 
 
 
