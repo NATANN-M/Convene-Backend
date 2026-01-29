@@ -74,7 +74,7 @@ public class ErrorHandlingMiddleware
 
             case KeyNotFoundException:
                 statusCode = HttpStatusCode.NotFound;
-                message = "Resource not found.";
+                message = exception.Message;
                 break;
         }
 

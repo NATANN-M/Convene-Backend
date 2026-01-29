@@ -209,7 +209,7 @@ namespace Convene.Infrastructure.Services
 
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == email);
             if (user == null)
-                throw new Exception("No user found with this email.");
+                throw new KeyNotFoundException("No user found with this email.");
 
          
             var otp = new Random().Next(100000, 999999).ToString();
@@ -231,16 +231,16 @@ namespace Convene.Infrastructure.Services
 
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == email);
             if (user == null)
-                throw new Exception("Invalid email.");
+                throw new KeyNotFoundException("Invalid email.");
 
             if (user.OtpCode != request.OtpCode)
-                throw new Exception("Invalid OTP code.");
+                throw new KeyNotFoundException("Invalid OTP code.");
 
             if (user.OtpExpiration < DateTime.UtcNow)
-                throw new Exception("OTP has expired.");
+                throw new KeyNotFoundException("OTP has expired.");
 
             if (user.IsOtpUsed == true)
-                throw new Exception("OTP already used.");
+                throw new KeyNotFoundException("OTP already used.");
 
             
             user.IsOtpUsed = true;
@@ -254,10 +254,10 @@ namespace Convene.Infrastructure.Services
 
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == email);
             if (user == null)
-                throw new Exception("User not found.");
+                throw new KeyNotFoundException("User not found.");
 
             if (user.IsOtpUsed != true)
-                throw new Exception("OTP verification required before resetting password.");
+                throw new KeyNotFoundException("OTP verification required before resetting password.");
 
             
             var hashedPassword = _passwordHasher.HashPassword(request.NewPassword);

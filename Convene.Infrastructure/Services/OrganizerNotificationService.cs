@@ -32,7 +32,7 @@ namespace Convene.Infrastructure.Services
                 .FirstOrDefaultAsync();
 
             if (ev == null)
-                throw new Exception("Event not found or not owned by organizer");
+                throw new KeyNotFoundException("Event not found or not owned by organizer");
 
             // Get confirmed attendees
             var userIds = await _context.Bookings

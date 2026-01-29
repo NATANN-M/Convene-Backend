@@ -22,12 +22,20 @@ namespace Convene.Infrastructure.Services
         // ---------------- Add Ticket Type ----------------
         public async Task<TicketTypeResponseDto> AddTicketTypeAsync(Guid eventId, TicketTypeCreateDto dto)
         {
-            var ev = await _context.Events.Include(e => e.TicketTypes).FirstOrDefaultAsync(e => e.Id == eventId);
-            if (ev == null) throw new Exception("Event not found");
+            var ev = await _context.Events
+                .Include(e => e.TicketTypes)
+                .FirstOrDefaultAsync(e => e.Id == eventId);
 
-            if (ev.TotalCapacity < ev.TicketTypes.Sum(t => t.Quantity) + dto.Quantity)
+            if (ev == null)
+                throw new KeyNotFoundException("Event not found");
+
+            var currentTotal = ev.TicketTypes.Sum(t => t.Quantity);
+
+            if (currentTotal + dto.Quantity > ev.TotalCapacity)
             {
-                throw new Exception($"Total capacity of {ev.TotalCapacity} would be exceeded. Please adjust event capacity or ticket quantities.");
+                throw new InvalidOperationException(
+                    $"Total capacity of {ev.TotalCapacity} would be exceeded. Please adjust event capacity or ticket quantities."
+                );
             }
 
             var ticket = new TicketType
@@ -58,17 +66,29 @@ namespace Convene.Infrastructure.Services
         // ---------------- Update Ticket Type ----------------
         public async Task<TicketTypeResponseDto> UpdateTicketTypeAsync(Guid ticketTypeId, TicketTypeCreateDto dto)
         {
-            var ticket = await _context.TicketTypes.FirstOrDefaultAsync(t => t.Id == ticketTypeId);
-            if (ticket == null) throw new Exception("Ticket type not found");
+            var ticket = await _context.TicketTypes
+                .FirstOrDefaultAsync(t => t.Id == ticketTypeId);
 
-            var ev = await _context.Events.Include(e => e.TicketTypes).FirstOrDefaultAsync(e => e.Id == ticket.EventId);
-            if (ev == null) throw new Exception("Event not found");
+            if (ticket == null)
+                throw new KeyNotFoundException("Ticket type not found");
 
-            // Check total capacity before updating
-            var totalOtherTickets = ev.TicketTypes.Where(t => t.Id != ticketTypeId).Sum(t => t.Quantity);
+            var ev = await _context.Events
+                .Include(e => e.TicketTypes)
+                .FirstOrDefaultAsync(e => e.Id == ticket.EventId);
+
+            if (ev == null)
+                throw new KeyNotFoundException("Event not found");
+
+            // Capacity check (excluding this ticket)
+            var totalOtherTickets = ev.TicketTypes
+                .Where(t => t.Id != ticketTypeId)
+                .Sum(t => t.Quantity);
+
             if (totalOtherTickets + dto.Quantity > ev.TotalCapacity)
             {
-                throw new Exception($"Cannot update ticket. Total capacity of {ev.TotalCapacity} would be exceeded. Please adjust event capacity or ticket quantities.");
+                throw new InvalidOperationException(
+                    $"Cannot update ticket. Total capacity of {ev.TotalCapacity} would be exceeded. Please adjust event capacity or ticket quantities."
+                );
             }
 
             ticket.Name = dto.Name;
@@ -89,23 +109,31 @@ namespace Convene.Infrastructure.Services
             };
         }
 
-        // ---------------- Activate/Deactivate Ticket Type ----------------
+        // ---------------- Activate / Deactivate ----------------
         public async Task<string> SetActiveStatusAsync(Guid ticketTypeId, bool isActive)
         {
-            var ticket = await _context.TicketTypes.FirstOrDefaultAsync(t => t.Id == ticketTypeId);
-            if (ticket == null) throw new Exception("Ticket type not found");
+            var ticket = await _context.TicketTypes
+                .FirstOrDefaultAsync(t => t.Id == ticketTypeId);
+
+            if (ticket == null)
+                throw new KeyNotFoundException("Ticket type not found");
 
             ticket.IsActive = isActive;
             await _context.SaveChangesAsync();
 
-            return isActive ? "Ticket type activated successfully." : "Ticket type deactivated successfully.";
+            return isActive
+                ? "Ticket type activated successfully."
+                : "Ticket type deactivated successfully.";
         }
 
         // ---------------- Remove Ticket Type ----------------
         public async Task<string> RemoveTicketTypeAsync(Guid ticketTypeId)
         {
-            var ticket = await _context.TicketTypes.FirstOrDefaultAsync(t => t.Id == ticketTypeId);
-            if (ticket == null) throw new Exception("Ticket type not found");
+            var ticket = await _context.TicketTypes
+                .FirstOrDefaultAsync(t => t.Id == ticketTypeId);
+
+            if (ticket == null)
+                throw new KeyNotFoundException("Ticket type not found");
 
             _context.TicketTypes.Remove(ticket);
             await _context.SaveChangesAsync();

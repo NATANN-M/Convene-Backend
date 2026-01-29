@@ -60,7 +60,7 @@ namespace Convene.Infrastructure.Services
         public async Task<PricingRuleResponseDto> UpdatePricingRuleAsync(Guid ruleId, PricingRuleCreateDto dto)
         {
             var rule = await _context.DynamicPricingRules.FirstOrDefaultAsync(r => r.Id == ruleId);
-            if (rule == null) throw new Exception("Pricing rule not found");
+            if (rule == null) throw new KeyNotFoundException("Pricing rule not found");
 
             PricingService.ValidatePricingRule(dto);
 
@@ -93,7 +93,7 @@ namespace Convene.Infrastructure.Services
         public async Task RemovePricingRuleAsync(Guid ruleId)
         {
             var rule = await _context.DynamicPricingRules.FirstOrDefaultAsync(r => r.Id == ruleId);
-            if (rule == null) throw new Exception("Pricing rule not found");
+            if (rule == null) throw new KeyNotFoundException("Pricing rule not found");
 
             _context.DynamicPricingRules.Remove(rule);
             await _context.SaveChangesAsync();
@@ -102,7 +102,7 @@ namespace Convene.Infrastructure.Services
         public async Task<string> SetActiveStatusAsync(Guid ruleId, bool isActive)
         {
             var rule = await _context.DynamicPricingRules.FirstOrDefaultAsync(r => r.Id == ruleId);
-            if (rule == null) throw new Exception("Pricing rule not found");
+            if (rule == null) throw new KeyNotFoundException("Pricing rule not found");
 
             rule.IsActive = isActive;
             await _context.SaveChangesAsync();

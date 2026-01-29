@@ -205,7 +205,7 @@ public class GatePersonService : IGatePersonService
             .FirstOrDefaultAsync(g => g.UserId == gatePersonUserId && g.IsActive);
 
         if (gatePerson == null)
-            throw new Exception("Gate person not found");
+            throw new KeyNotFoundException("Gate person not found");
 
         // 2. Get Organizer
         var organizer = await _context.Users

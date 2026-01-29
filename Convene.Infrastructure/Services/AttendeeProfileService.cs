@@ -31,7 +31,7 @@ namespace Convene.Infrastructure.Services
                 .FirstOrDefaultAsync(u => u.Id == userId);
 
             if (user == null)
-                throw new Exception("User not found");
+                throw new KeyNotFoundException("User not found");
 
             var confirmed = user.Bookings.Count(b => b.Status == BookingStatus.Confirmed);
 
@@ -58,7 +58,7 @@ namespace Convene.Infrastructure.Services
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
 
             if (user == null)
-                throw new Exception("User not found");
+                throw new KeyNotFoundException("User not found");
 
             user.FullName = dto.FullName;
             user.PhoneNumber = dto.PhoneNumber;
@@ -72,7 +72,7 @@ namespace Convene.Infrastructure.Services
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
 
             if (user == null)
-                throw new Exception("User not found");
+                throw new KeyNotFoundException("User not found");
 
             // Remove old profile image
             if (!string.IsNullOrEmpty(user.ProfileImageUrl))

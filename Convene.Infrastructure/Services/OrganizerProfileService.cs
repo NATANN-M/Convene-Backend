@@ -34,7 +34,7 @@ namespace Convene.Infrastructure.Services
                 .FirstOrDefaultAsync(u => u.Id == userId);
 
             if (user == null)
-                throw new Exception("User not found");
+                throw new KeyNotFoundException("User not found");
 
             var profile = user.OrganizerProfile;
 
@@ -74,11 +74,11 @@ namespace Convene.Infrastructure.Services
                 .FirstOrDefaultAsync(u => u.Id == userId);
 
             if (user == null)
-                throw new Exception("User not found");
+                throw new KeyNotFoundException("User not found");
 
             var profile = user.OrganizerProfile;
             if (profile == null)
-                throw new Exception("Organizer profile not found");
+                throw new  KeyNotFoundException("Organizer profile not found");
 
             // Update allowed fields
             user.FullName = dto.FullName;
@@ -97,7 +97,7 @@ namespace Convene.Infrastructure.Services
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
 
             if (user == null)
-                throw new Exception("User not found");
+                throw new KeyNotFoundException("User not found");
 
             // Delete old image if exists
             if (!string.IsNullOrEmpty(user.ProfileImageUrl))

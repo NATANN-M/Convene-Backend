@@ -222,7 +222,7 @@ public class TicketScanService : ITicketScanService
             .AnyAsync(e => e.Id == eventId && e.OrganizerId == organizerUserId);
 
         if (!ownsEvent)
-            throw new Exception("You do not have permission to view logs for this event.");
+            throw new InvalidOperationException("You do not have permission to view logs for this event.");
 
         var query = _context.TicketScanLogs
             .Where(l => l.EventId == eventId);
@@ -271,7 +271,7 @@ public class TicketScanService : ITicketScanService
             .AnyAsync(e => e.Id == eventId && e.OrganizerId == organizerUserId);
 
         if (!ownsEvent)
-            throw new Exception("You do not have permission to view this event summary.");
+            throw new InvalidOperationException("You do not have permission to view this event summary.");
 
         var logs = _context.TicketScanLogs.Where(l => l.EventId == eventId);
 

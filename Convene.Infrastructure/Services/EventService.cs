@@ -40,23 +40,23 @@ namespace Convene.Infrastructure.Services
             var categoryExists = await _context.EventCategories.AnyAsync(c => c.Id == dto.CategoryId);
 
             if (!categoryExists)
-                throw new Exception("select valid category or select category and try again");
+                throw new ArgumentException("select valid category or select category and try again");
 
             if(dto.TicketSalesStart != null && dto.TicketSalesEnd != null &&
                 dto.TicketSalesStart >= dto.TicketSalesEnd)
             {
-                throw new Exception("Ticket sales start date must be before end date.");
+                throw new ArgumentException("Ticket sales start date must be before end date.");
             }
 
             if(dto.StartDate >= dto.EndDate)
             {
-                throw new Exception("Event start date must be before end date.");
+                throw new ArgumentException("Event start date must be before end date.");
             }
             if (dto.TicketSalesEnd != null)
             {
                 if (dto.TicketSalesEnd > dto.StartDate)
                 {
-                    throw new Exception("Ticket sales end date must be before event start date.");
+                    throw new ArgumentException("Ticket sales end date must be before event start date.");
                 }
             }
 
@@ -142,51 +142,76 @@ namespace Convene.Infrastructure.Services
                     await _cloudinaryService.DeleteFileAsync(fileUrl);
                 }
 
-                throw new Exception("Event creation failed: " + ex.Message);
+                throw new ArgumentException("Event creation failed: " + ex.Message);
             }
         }
 
 
 
 
-        public async Task<EventResponseDto> UpdateEventAsync(EventUpdateDto dto ,Guid eventid)
+        public async Task<EventResponseDto> UpdateEventAsync(EventUpdateDto dto, Guid eventid)
         {
             var ev = await _context.Events
-         .Include(e => e.TicketTypes)
-         .ThenInclude(t => t.PricingRules)
-         .FirstOrDefaultAsync(e => e.Id == eventid);
+                .Include(e => e.TicketTypes)
+                .ThenInclude(t => t.PricingRules)
+                .FirstOrDefaultAsync(e => e.Id == eventid);
 
             if (ev == null)
-                throw new Exception("Event not found");
+                throw new KeyNotFoundException("Event not found");
 
-            // Check if CategoryId has a value (not null and not empty Guid)
+            // ---------------- Category ----------------
             if (dto.CategoryId.HasValue && dto.CategoryId.Value != Guid.Empty)
             {
                 var categoryExists = await _context.EventCategories
                     .AnyAsync(c => c.Id == dto.CategoryId.Value);
 
                 if (!categoryExists)
-                    throw new Exception("Select valid category");
+                    throw new ArgumentException("Select valid category");
 
                 ev.CategoryId = dto.CategoryId.Value;
             }
-            // If dto.CategoryId is null or Guid.Empty, skip the update
 
-            ev.Title = dto.Title;
-            ev.Description = dto.Description;
-            ev.Venue = dto.Venue;
-            ev.Location = dto.Location;
-            ev.TicketSalesStart = dto.TicketSalesStart ?? DateTime.Now;
-            ev.TicketSalesEnd = dto.TicketSalesEnd ?? dto.StartDate;
-            ev.StartDate = dto.StartDate;
-            ev.EndDate = dto.EndDate;
-            ev.TotalCapacity = dto.TotalCapacity;
-            // ------------------------------
-            // Handle media files with Cloudinary
-            // ------------------------------
+            // ---------------- Basic Fields ----------------
+            if (!string.IsNullOrWhiteSpace(dto.Title))
+                ev.Title = dto.Title;
 
-            // Deserialize existing media JSON
+            if (dto.Description != null)
+                ev.Description = dto.Description;
+
+            if (!string.IsNullOrWhiteSpace(dto.Venue))
+                ev.Venue = dto.Venue;
+
+            if (!string.IsNullOrWhiteSpace(dto.Location))
+                ev.Location = dto.Location;
+
+            // ---------------- Dates ----------------
+            if (dto.TicketSalesStart.HasValue)
+                ev.TicketSalesStart = dto.TicketSalesStart.Value;
+
+            if (dto.TicketSalesEnd.HasValue)
+                ev.TicketSalesEnd = dto.TicketSalesEnd.Value;
+
+            if (dto.StartDate != default)
+                ev.StartDate = dto.StartDate;
+
+            if (dto.EndDate != default)
+                ev.EndDate = dto.EndDate;
+
+            // ---------------- Capacity ----------------
+            if (dto.TotalCapacity > 0)
+            {
+                var usedCapacity = ev.TicketTypes.Sum(t => t.Quantity);
+
+                if (dto.TotalCapacity < usedCapacity)
+                    throw new InvalidOperationException(
+                        $"Total capacity cannot be less than existing ticket capacity ({usedCapacity}).");
+
+                ev.TotalCapacity = dto.TotalCapacity;
+            }
+
+            // ---------------- Media Handling ----------------
             EventMediaDto media;
+
             if (!string.IsNullOrEmpty(ev.CoverImageUrl))
             {
                 media = System.Text.Json.JsonSerializer.Deserialize<EventMediaDto>(ev.CoverImageUrl)
@@ -197,56 +222,57 @@ namespace Convene.Infrastructure.Services
                 media = new EventMediaDto();
             }
 
-            // Keep track of newly uploaded files for cleanup if needed
             var newlyUploadedFiles = new List<string>();
-
-            // Cloudinary folder for this event
             string eventFolder = $"events/{ev.Id}";
 
             try
             {
-                // 1?? Update Cover Image if provided
+                // Cover Image
                 if (dto.CoverImage != null)
                 {
-                    // Delete old cover image
                     if (!string.IsNullOrEmpty(media.CoverImage))
                         await _cloudinaryService.DeleteFileAsync(media.CoverImage);
 
-                    media.CoverImage = await _cloudinaryService.UploadImageAsync(dto.CoverImage, $"{eventFolder}/cover");
-                    if (media.CoverImage == null)
+                    var coverUrl = await _cloudinaryService.UploadImageAsync(dto.CoverImage, $"{eventFolder}/cover");
+                    if (coverUrl == null)
                         throw new Exception("Cover image upload failed.");
-                    newlyUploadedFiles.Add(media.CoverImage);
+
+                    media.CoverImage = coverUrl;
+                    newlyUploadedFiles.Add(coverUrl);
                 }
 
-                // 2?? Update Additional Images if provided
+                // Additional Images
                 if (dto.AdditionalImages?.Any() == true)
                 {
                     media.AdditionalImages ??= new List<string>();
+
                     foreach (var file in dto.AdditionalImages)
                     {
                         var imgUrl = await _cloudinaryService.UploadImageAsync(file, $"{eventFolder}/images");
                         if (imgUrl == null)
                             throw new Exception("Additional image upload failed.");
+
                         media.AdditionalImages.Add(imgUrl);
                         newlyUploadedFiles.Add(imgUrl);
                     }
                 }
 
-                // 3?? Update Videos if provided
+                // Videos
                 if (dto.Videos?.Any() == true)
                 {
                     media.Videos ??= new List<string>();
+
                     foreach (var file in dto.Videos)
                     {
                         var videoUrl = await _cloudinaryService.UploadVideoAsync(file, $"{eventFolder}/videos");
                         if (videoUrl == null)
                             throw new Exception("Video upload failed.");
+
                         media.Videos.Add(videoUrl);
                         newlyUploadedFiles.Add(videoUrl);
                     }
                 }
 
-                // Serialize media back to CoverImageUrl
                 ev.CoverImageUrl = System.Text.Json.JsonSerializer.Serialize(media);
 
                 await _context.SaveChangesAsync();
@@ -254,7 +280,6 @@ namespace Convene.Infrastructure.Services
             }
             catch (Exception ex)
             {
-                // If something failed ? delete all newly uploaded files
                 foreach (var fileUrl in newlyUploadedFiles)
                 {
                     await _cloudinaryService.DeleteFileAsync(fileUrl);
@@ -264,6 +289,7 @@ namespace Convene.Infrastructure.Services
             }
         }
 
+
         public async Task<bool> PublishEventAsync(Guid eventId)
         {
             var ev = await _context.Events
@@ -272,12 +298,12 @@ namespace Convene.Infrastructure.Services
                 .FirstOrDefaultAsync(e => e.Id == eventId);
 
             if (ev == null)
-                throw new Exception("Event not found");
+                throw new KeyNotFoundException("Event not found");
 
             // Must have at least one active ticket type
             var activeTicketTypes = ev.TicketTypes.Where(t => t.IsActive).ToList();
             if (!activeTicketTypes.Any())
-                throw new Exception("Cannot publish event: At least one active ticket type is required.");
+                throw new ArgumentException("Cannot publish event: At least one active ticket type is required.");
 
         
             var settings = await _creditService.GetPlatformSettingsAsync();
@@ -286,7 +312,7 @@ namespace Convene.Infrastructure.Services
             var balance = await _creditService.GetBalanceAsync(ev.OrganizerId);
 
             if (balance < publishCost)
-                throw new Exception($"Not enough credits. Required: {publishCost}, Available: {balance}");
+                throw new InvalidOperationException($"Not enough credits. Required: {publishCost}, Available: {balance}");
 
         
             await _creditService.DeductCreditsAsync(
@@ -316,7 +342,7 @@ namespace Convene.Infrastructure.Services
                 .FirstOrDefaultAsync(e => e.Id == eventId);
 
             if (ev == null)
-                throw new Exception("Event not found");
+                throw new  KeyNotFoundException("Event not found");
 
             return await MapEventToDtoAsync(ev);
         }
@@ -347,10 +373,10 @@ namespace Convene.Infrastructure.Services
                 .FirstOrDefaultAsync(e => e.Id == eventId && e.OrganizerId == organizerId);
 
             if (ev == null)
-                throw new Exception("Event not found");
+                throw new KeyNotFoundException("Event not found");
 
             if (ev.Status != EventStatus.Draft)
-                throw new Exception("Only draft events can be deleted");
+                throw new InvalidOperationException("Only draft events can be deleted");
 
             // Delete media from Cloudinary
             if (!string.IsNullOrWhiteSpace(ev.CoverImageUrl))

@@ -30,7 +30,7 @@ namespace Convene.Infrastructure.Services
                 .FirstOrDefaultAsync(t => t.Id == ticketTypeId);
 
             if (ticketType == null)
-                throw new Exception("Ticket type not found.");
+                throw new KeyNotFoundException("Ticket type not found.");
 
             var now = DateTime.UtcNow;
             decimal basePrice = ticketType.BasePrice;
@@ -83,33 +83,33 @@ namespace Convene.Infrastructure.Services
             {
                 case PricingRuleType.EarlyBird:
                     if (!dto.StartDate.HasValue || !dto.EndDate.HasValue)
-                        throw new Exception("Early Bird rule requires StartDate and EndDate.");
+                        throw new ArgumentException("Early Bird rule requires StartDate and EndDate.");
 
                     if (!dto.DiscountPercent.HasValue || dto.DiscountPercent.Value <= 0)
-                        throw new Exception("Early Bird rule requires a DiscountPercent greater than 0.");
+                        throw new ArgumentException("Early Bird rule requires a DiscountPercent greater than 0.");
 
                     if (dto.EndDate <= dto.StartDate)
-                        throw new Exception("EndDate must be after StartDate.");
+                        throw new ArgumentException("EndDate must be after StartDate.");
                     break;
 
                 case PricingRuleType.LastMinute:
                     if (!dto.LastNDaysBeforeEvent.HasValue || dto.LastNDaysBeforeEvent.Value <= 0)
-                        throw new Exception("Last Minute rule requires LastNDaysBeforeEvent greater than 0.");
+                        throw new ArgumentException("Last Minute rule requires LastNDaysBeforeEvent greater than 0.");
 
                     if (!dto.DiscountPercent.HasValue || dto.DiscountPercent.Value <= 0)
-                        throw new Exception("Last Minute rule requires a DiscountPercent greater than 0.");
+                        throw new ArgumentException("Last Minute rule requires a DiscountPercent greater than 0.");
                     break;
 
                 case PricingRuleType.DemandBased:
                     if (!dto.ThresholdPercentage.HasValue || dto.ThresholdPercentage.Value <= 0)
-                        throw new Exception("Demand Based rule requires ThresholdPercentage greater than 0.");
+                        throw new ArgumentException("Demand Based rule requires ThresholdPercentage greater than 0.");
 
                     if (!dto.PriceIncreasePercent.HasValue || dto.PriceIncreasePercent.Value <= 0)
-                        throw new Exception("Demand Based rule requires PriceIncreasePercent greater than 0.");
+                        throw new ArgumentException("Demand Based rule requires PriceIncreasePercent greater than 0.");
                     break;
 
                 default:
-                    throw new Exception("Invalid pricing rule type.");
+                    throw new ArgumentException("Invalid pricing rule type.");
             }
         }
 
