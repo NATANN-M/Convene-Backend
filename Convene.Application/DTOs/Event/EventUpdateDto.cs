@@ -9,7 +9,7 @@ namespace Convene.Application.DTOs.Event
        
         public string Title { get; set; } = null!;
         public string? Description { get; set; }
-        public Guid CategoryId { get; set; }
+        public Guid ? CategoryId { get; set; }
         public string? Venue { get; set; }
         public string? Location { get; set; }
 

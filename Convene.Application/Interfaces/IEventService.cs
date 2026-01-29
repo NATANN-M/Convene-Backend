@@ -11,6 +11,7 @@ namespace Convene.Application.Interfaces
         Task<EventResponseDto> UpdateEventAsync(EventUpdateDto dto ,Guid eventid);
         Task<bool> PublishEventAsync(Guid eventId);
         Task<EventResponseDto> GetEventByIdAsync(Guid eventId);
+        Task<bool> DeleteDraftEventAsync(Guid eventId, Guid organizerId);
         Task<List<EventResponseDto>> GetOrganizerEventsAsync(Guid organizerId);
         List<TicketTypeResponseDto> GetDefaultTicketTypes();
         List<PricingRuleResponseDto> GetDefaultPricingRules();

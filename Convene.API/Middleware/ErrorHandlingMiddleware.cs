@@ -1,13 +1,18 @@
 using System.Net;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 
 public class ErrorHandlingMiddleware
 {
     private readonly RequestDelegate _next;
+    private readonly ILogger<ErrorHandlingMiddleware> _logger;
 
-    public ErrorHandlingMiddleware(RequestDelegate next)
+    public ErrorHandlingMiddleware(
+        RequestDelegate next,
+        ILogger<ErrorHandlingMiddleware> logger)
     {
         _next = next;
+        _logger = logger;
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -16,15 +21,22 @@ public class ErrorHandlingMiddleware
         {
             await _next(context);
 
-            // Handle unauthorized or forbidden responses (401, 403)
             if (context.Response.StatusCode == (int)HttpStatusCode.Unauthorized)
             {
-                await WriteErrorResponseAsync(context, HttpStatusCode.Unauthorized,
+                _logger.LogWarning("401 Unauthorized: {Path}", context.Request.Path);
+
+                await WriteErrorResponseAsync(
+                    context,
+                    HttpStatusCode.Unauthorized,
                     "Unauthorized access. Please log in to continue.");
             }
             else if (context.Response.StatusCode == (int)HttpStatusCode.Forbidden)
             {
-                await WriteErrorResponseAsync(context, HttpStatusCode.Forbidden,
+                _logger.LogWarning("403 Forbidden: {Path}", context.Request.Path);
+
+                await WriteErrorResponseAsync(
+                    context,
+                    HttpStatusCode.Forbidden,
                     "Access denied. You do not have permission to perform this action.");
             }
         }
@@ -36,6 +48,12 @@ public class ErrorHandlingMiddleware
 
     private async Task HandleExceptionAsync(HttpContext context, Exception exception)
     {
+        _logger.LogError(
+            exception,
+            "Unhandled exception occurred. Path: {Path}, Method: {Method}",
+            context.Request.Path,
+            context.Request.Method);
+
         context.Response.ContentType = "application/json";
 
         HttpStatusCode statusCode = HttpStatusCode.InternalServerError;
@@ -49,10 +67,6 @@ public class ErrorHandlingMiddleware
                 break;
 
             case InvalidOperationException:
-                statusCode = HttpStatusCode.BadRequest;
-                message = exception.Message;
-                break;
-
             case ArgumentException:
                 statusCode = HttpStatusCode.BadRequest;
                 message = exception.Message;
@@ -62,10 +76,6 @@ public class ErrorHandlingMiddleware
                 statusCode = HttpStatusCode.NotFound;
                 message = "Resource not found.";
                 break;
-
-            default:
-                message = exception.Message;
-                break;
         }
 
         context.Response.StatusCode = (int)statusCode;
@@ -74,7 +84,6 @@ public class ErrorHandlingMiddleware
         {
             success = false,
             error = message,
-            detail = exception.InnerException?.Message,
             statusCode = (int)statusCode
         };
 
@@ -87,7 +96,10 @@ public class ErrorHandlingMiddleware
         await context.Response.WriteAsync(json);
     }
 
-    private async Task WriteErrorResponseAsync(HttpContext context, HttpStatusCode statusCode, string message)
+    private async Task WriteErrorResponseAsync(
+        HttpContext context,
+        HttpStatusCode statusCode,
+        string message)
     {
         if (context.Response.HasStarted) return;
 
@@ -111,7 +123,7 @@ public class ErrorHandlingMiddleware
     }
 }
 
-// ? Extension method for easy registration in Program.cs
+// Extension
 public static class ErrorHandlingMiddlewareExtensions
 {
     public static IApplicationBuilder UseErrorHandling(this IApplicationBuilder builder)

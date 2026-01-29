@@ -12,6 +12,7 @@ using System;
 using System.Collections.Generic;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using Convene.Domain.Enums;
 
 
 namespace Convene.API.Controllers
@@ -37,6 +38,7 @@ namespace Convene.API.Controllers
 
 
         [HttpGet("test-auth")]
+        [AllowAnonymous]
         public IActionResult TestAuth()
         {
             var userClaims = new
@@ -137,14 +139,15 @@ namespace Convene.API.Controllers
                         .ThenInclude(t => t.PricingRules)
                     .Include(e => e.Category)
                     .AsSplitQuery() // split queries for multiple collections
-                    .OrderByDescending(e => e.CreatedAt)
+                                    // ORDER BY: Published first, then newest updated/created first
+                    .OrderByDescending(e => e.Status == EventStatus.Published)
+                    .ThenByDescending(e => e.UpdatedAt ?? e.CreatedAt)
                     .ToListAsync();
 
                 var result = new List<EventResponseDto>();
 
                 foreach (var ev in events)
                 {
-                    
                     EventMediaDto? media = null;
                     if (!string.IsNullOrEmpty(ev.CoverImageUrl))
                     {
@@ -158,11 +161,9 @@ namespace Convene.API.Controllers
                         }
                     }
 
-                   
                     var ticketDtos = new List<TicketTypeResponseDto>();
                     foreach (var t in ev.TicketTypes)
                     {
-                       
                         var currentPrice = await _pricingService.GetCurrentPriceAsync(t.Id);
 
                         var pricingRulesDto = t.PricingRules.Select(r => new PricingRuleResponseDto
@@ -221,5 +222,6 @@ namespace Convene.API.Controllers
                 });
             }
         }
+
     }
 }

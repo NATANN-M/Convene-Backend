@@ -151,21 +151,29 @@ namespace Convene.Infrastructure.Services
 
         public async Task<EventResponseDto> UpdateEventAsync(EventUpdateDto dto ,Guid eventid)
         {
-            var categoryExists = await _context.EventCategories.AnyAsync(c => c.Id == dto.CategoryId);
-            if (!categoryExists)
-                throw new Exception("select valid category or select category and try again");
-
             var ev = await _context.Events
-                .Include(e => e.TicketTypes)
-                .ThenInclude(t => t.PricingRules)
-                .FirstOrDefaultAsync(e => e.Id == eventid);
+         .Include(e => e.TicketTypes)
+         .ThenInclude(t => t.PricingRules)
+         .FirstOrDefaultAsync(e => e.Id == eventid);
 
             if (ev == null)
                 throw new Exception("Event not found");
 
+            // Check if CategoryId has a value (not null and not empty Guid)
+            if (dto.CategoryId.HasValue && dto.CategoryId.Value != Guid.Empty)
+            {
+                var categoryExists = await _context.EventCategories
+                    .AnyAsync(c => c.Id == dto.CategoryId.Value);
+
+                if (!categoryExists)
+                    throw new Exception("Select valid category");
+
+                ev.CategoryId = dto.CategoryId.Value;
+            }
+            // If dto.CategoryId is null or Guid.Empty, skip the update
+
             ev.Title = dto.Title;
             ev.Description = dto.Description;
-            ev.CategoryId = dto.CategoryId;
             ev.Venue = dto.Venue;
             ev.Location = dto.Location;
             ev.TicketSalesStart = dto.TicketSalesStart ?? DateTime.Now;
@@ -173,7 +181,6 @@ namespace Convene.Infrastructure.Services
             ev.StartDate = dto.StartDate;
             ev.EndDate = dto.EndDate;
             ev.TotalCapacity = dto.TotalCapacity;
-
             // ------------------------------
             // Handle media files with Cloudinary
             // ------------------------------
@@ -319,8 +326,11 @@ namespace Convene.Infrastructure.Services
             var events = await _context.Events
                 .Where(e => e.OrganizerId == organizerId)
                 .Include(e => e.TicketTypes)
-                .ThenInclude(t => t.PricingRules)
+                    .ThenInclude(t => t.PricingRules)
                 .Include(e => e.Category)
+             // Published first, then newest updated/created
+                .OrderByDescending(e => e.Status == EventStatus.Published)
+                .ThenByDescending(e => e.UpdatedAt ?? e.CreatedAt)
                 .ToListAsync();
 
             var result = new List<EventResponseDto>();
@@ -329,6 +339,49 @@ namespace Convene.Infrastructure.Services
 
             return result;
         }
+
+
+        public async Task<bool> DeleteDraftEventAsync(Guid eventId, Guid organizerId)
+        {
+            var ev = await _context.Events
+                .FirstOrDefaultAsync(e => e.Id == eventId && e.OrganizerId == organizerId);
+
+            if (ev == null)
+                throw new Exception("Event not found");
+
+            if (ev.Status != EventStatus.Draft)
+                throw new Exception("Only draft events can be deleted");
+
+            // Delete media from Cloudinary
+            if (!string.IsNullOrWhiteSpace(ev.CoverImageUrl))
+            {
+                try
+                {
+                    var media = JsonSerializer.Deserialize<EventMediaDto>(ev.CoverImageUrl);
+                    if (!string.IsNullOrWhiteSpace(media?.CoverImage))
+                        await _cloudinaryService.DeleteFileAsync(media.CoverImage);
+
+                    if (media?.AdditionalImages != null)
+                        foreach (var img in media.AdditionalImages)
+                            await _cloudinaryService.DeleteFileAsync(img);
+
+                    if (media?.Videos != null)
+                        foreach (var vid in media.Videos)
+                            await _cloudinaryService.DeleteFileAsync(vid);
+                }
+                catch
+                {
+                    // ignore media cleanup failure
+                }
+            }
+
+            _context.Events.Remove(ev);
+            await _context.SaveChangesAsync();
+
+            return true;
+        }
+
+
 
         public List<TicketTypeResponseDto> GetDefaultTicketTypes() => new()
         {

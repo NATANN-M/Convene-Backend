@@ -76,6 +76,24 @@ namespace Convene.API.Controllers
             var defaults = _eventService.GetDefaultTicketTypes();
             return Ok(defaults);
         }
+
+        [HttpDelete("delete-draft-event")]
+        public async Task<IActionResult> DeleteDraftEvent(Guid eventId)
+        {
+            var organizerIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(organizerIdClaim))
+                return Unauthorized(new { message = "Unauthorized Please Login And Try Again." });
+
+            var organizerId = Guid.Parse(organizerIdClaim);
+
+            var deletedraft = await _eventService.DeleteDraftEventAsync(eventId, organizerId);
+
+            if (deletedraft)
+                return Ok("Draft Event Successfully Deleted");
+
+            return BadRequest("Failed to delete draft event");
+        }
+
         [AllowAnonymous]
         [HttpGet("get-default-pricing-rules")]
         public IActionResult GetDefaultPricingRules()

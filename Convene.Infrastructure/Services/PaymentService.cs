@@ -25,8 +25,7 @@ namespace Convene.Infrastructure.Services
         private readonly IBookingService _bookingService;
         private readonly INotificationService _notificationService;
         private readonly IBackgroundTaskQueue _backgroundTaskQueue;
-        private readonly ILogger<PaymentService> _logger;
-
+        private readonly ICreditService _creditService;
         public PaymentService(
             ConveneDbContext context,
             IHttpClientFactory httpClientFactory,
@@ -35,8 +34,7 @@ namespace Convene.Infrastructure.Services
             IBookingService bookingService,
             INotificationService notificationService,
             IBackgroundTaskQueue backgroundTaskQueue,
-            ICreditService creditService,
-            ILogger<PaymentService> logger)
+            ICreditService creditService)
         {
             _context = context;
             _httpClient = httpClientFactory.CreateClient();
@@ -46,7 +44,6 @@ namespace Convene.Infrastructure.Services
             _notificationService = notificationService;
             _backgroundTaskQueue = backgroundTaskQueue;
             _creditService = creditService;
-            _logger = logger;
         }
 
         public async Task<PaymentResultDto> InitializePaymentAsync(InitializePaymentRequest request)
@@ -333,33 +330,23 @@ namespace Convene.Infrastructure.Services
             };
             httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
 
-            try 
-            {
-                var response = await _httpClient.SendAsync(httpRequest);
-                var content = await response.Content.ReadAsStringAsync();
+            var response = await _httpClient.SendAsync(httpRequest);
 
-                if (!response.IsSuccessStatusCode)
-                {
-                    _logger.LogError("Chapa initialization failed. Status: {Status}. Content: {Content}", response.StatusCode, content);
-                    throw new Exception($"Chapa initialization failed (Status: {response.StatusCode}): {content}");
-                }
+            var content = await response.Content.ReadAsStringAsync();
 
-                // 5. Parse response
-                var json = JsonDocument.Parse(content);
-                var checkoutUrl = json.RootElement
-                    .GetProperty("data")
-                    .GetProperty("checkout_url")
-                    .GetString();
+            if (!response.IsSuccessStatusCode)
+                throw new Exception($"Chapa error: {content}");
 
-                // 6. Save payment info
-                tx.PaymentReference = paymentReference;
-                tx.ChapaCheckoutUrl = checkoutUrl;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogCritical(ex, "Chapa Critical Exception during initialization");
-                throw;
-            }
+            // 5. Parse response
+            var json = JsonDocument.Parse(content);
+            var checkoutUrl = json.RootElement
+                .GetProperty("data")
+                .GetProperty("checkout_url")
+                .GetString();
+
+            // 6. Save payment info
+            tx.PaymentReference = paymentReference;
+            tx.ChapaCheckoutUrl = checkoutUrl;
 
             await _context.SaveChangesAsync();
 

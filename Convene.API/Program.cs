@@ -355,6 +355,16 @@ app.UseAuthorization();
 app.MapControllers();
 
 
+app.MapGet("/health", () =>
+{
+    return Results.Ok(new
+    {
+        status = "Healthy",
+        service = "Convent API",
+        time = DateTime.UtcNow
+    });
+});
+
 
 // ------------------------------------------------------------
 //  Seed Initial Data (Idempotent - Safe to run every time)

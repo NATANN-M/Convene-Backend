@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
+using Convene.Domain.Enums;
 
 public class OrganizerDashboardService : IOrganizerDashboardService
 {
@@ -23,8 +24,11 @@ public class OrganizerDashboardService : IOrganizerDashboardService
         var events = await _context.Events
             .Where(e => e.OrganizerId == organizerId)
             .Include(e => e.Category)
+            .OrderByDescending(e => e.Status == EventStatus.Published) // Published first
+            .ThenByDescending(e => e.UpdatedAt ?? e.CreatedAt)       //  updated/created first
             .ToListAsync();
-        var result= events.Select(ev => new OrganizerDashboardEventDto
+
+        var result = events.Select(ev => new OrganizerDashboardEventDto
         {
             EventId = ev.Id,
             Title = ev.Title,
@@ -41,6 +45,7 @@ public class OrganizerDashboardService : IOrganizerDashboardService
 
         return result;
     }
+
 
     // Helper method to extract cover image from JSON
     private string? GetCoverImageFromJson(string? coverImageUrl)

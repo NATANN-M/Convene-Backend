@@ -35,16 +35,24 @@ namespace Convene.Infrastructure.Services.Recommendation
         // Public: return summary DTOs and persist UserRecommendation
         public async Task<List<EventSummaryDto>> GetRecommendationsForUserAsync(Guid userId)
         {
-         
-            //  Load all events
-          
+
+            //  Load all events relevan event
+
+            var now = DateTime.UtcNow;
+
             var events = await _context.Events
-                .Where(e => e.Status == EventStatus.Published)
+                .Where(e =>
+                    e.Status == EventStatus.Published &&
+                    e.TicketSalesStart <= now &&
+                    e.TicketSalesEnd > now &&
+                    e.EndDate > now 
+                )
                 .Include(e => e.Category)
                 .Include(e => e.TicketTypes)
                 .Include(e => e.Bookings)
                 .AsNoTracking()
                 .ToListAsync();
+
 
             //  Load boosts for all events in one query
             var boosts = await _context.EventBoosts
@@ -95,6 +103,12 @@ namespace Convene.Infrastructure.Services.Recommendation
                 // build DTO
                 var media = TryParseCoverImage(ev.CoverImageUrl);
 
+                var boost = boosts
+    .FirstOrDefault(b => b.EventId == ev.Id && b.EndTime > DateTime.UtcNow);
+
+                string boostName = boost?.BoostLevel?.Name ?? "";
+
+
                 dtoList.Add(new EventSummaryDto
                 {
                     EventId = ev.Id,
@@ -106,18 +120,18 @@ namespace Convene.Infrastructure.Services.Recommendation
                     StartDate = ev.StartDate,
                     EndDate = ev.EndDate,
                     CategoryName = ev.Category?.Name ?? "",
-                    ActiveBoostLevelName=boosts.Where(b => b.EventId == ev.Id && b.EndTime > DateTime.UtcNow)
-                      
-                        .Select(b => b.BoostLevel.Name)
-                        .FirstOrDefault() ?? "",
+                    ActiveBoostLevelName = CanShowBoost(isColdStart, noMLModel, boostName)
+          ? boostName
+          : "",
                     LowestTicketPrice = GetLowestTicketPrice(ev.TicketTypes),
                     IsSoldOut = ev.TicketTypes.All(t => t.Quantity <= 0)
                 });
+
             }
 
-         
+
             //  Save Recommendations
-            
+
             foreach (var rec in recommendations)
             {
                 var existing = await _context.UserRecommendations
@@ -304,6 +318,17 @@ namespace Convene.Infrastructure.Services.Recommendation
                 return null;
             }
         }
+        //hleper to decide to show boost level 
+        private bool CanShowBoost(bool isColdStart, bool noMLModel, string boostName)
+        {
+            if (isColdStart || noMLModel)
+            {
+                return boostName == "Gold" || boostName == "Premium";
+            }
+
+            return true;
+        }
+
 
         #endregion
     }
