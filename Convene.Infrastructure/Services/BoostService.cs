@@ -9,6 +9,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.ML;
 using Convene.Application.DTOs.Boosts.AdminBoostLevel;
+using Convene.Domain.Enums;
 
 namespace Convene.Infrastructure.Services
 {
@@ -42,21 +43,50 @@ namespace Convene.Infrastructure.Services
         // Apply boost to an event
         public async Task<EventBoost> ApplyBoostAsync(Guid userId, Guid eventId, Guid boostLevelId)
         {
-            var boostLevel = await _context.BoostLevels.FirstOrDefaultAsync(b => b.Id == boostLevelId && b.IsActive);
+            // ---------------- Boost Level ----------------
+            var boostLevel = await _context.BoostLevels
+                .FirstOrDefaultAsync(b => b.Id == boostLevelId && b.IsActive);
+
             if (boostLevel == null)
                 throw new InvalidOperationException("Invalid or inactive boost level.");
 
-            // Deduct credits
-            await _creditService.DeductCreditsAsync(userId, boostLevel.CreditCost, "BoostEvent", $"Boost: {boostLevel.Name}");
+            // ---------------- Event Validation ----------------
+            var ev = await _context.Events
+                .AsNoTracking()
+                .FirstOrDefaultAsync(e => e.Id == eventId);
 
-            // Get OrganizerProfileId from UserId for FK references
+            if (ev == null)
+                throw new KeyNotFoundException("Event not found.");
+
+            if (ev.Status != EventStatus.Published)
+                throw new InvalidOperationException("Only published events can be boosted.");
+
+            if (ev.TicketSalesEnd < DateTime.UtcNow)
+            {
+                throw new InvalidOperationException(
+                    "Cannot boost an event whose ticket sales have already ended."
+                );
+            }
+
+
+            // ---------------- Organizer ----------------
             var organizerProfile = await _context.OrganizerProfiles
                 .FirstOrDefaultAsync(o => o.UserId == userId);
 
             if (organizerProfile == null)
                 throw new InvalidOperationException("Organizer profile not found for this user.");
 
+            // ---------------- Deduct Credits ----------------
+            await _creditService.DeductCreditsAsync(
+                userId,
+                boostLevel.CreditCost,
+                "BoostEvent",
+                $"Boost: {boostLevel.Name}"
+            );
+
+            // ---------------- Apply Boost ----------------
             var now = DateTime.UtcNow;
+
             var eventBoost = new EventBoost
             {
                 Id = Guid.NewGuid(),
@@ -73,6 +103,7 @@ namespace Convene.Infrastructure.Services
 
             return eventBoost;
         }
+
 
 
         public async Task<IEnumerable<EventBoost>> GetOrganizerBoostsAsync(Guid userId)

@@ -21,18 +21,21 @@ namespace Convene.Infrastructure.Services
         private readonly IPricingService _pricingService;
         private readonly ICloudinaryService _cloudinaryService;
         private readonly ICreditService _creditService;
+        private readonly ITelegramService _telegramService;
 
 
         public EventService(ConveneDbContext context, 
             IPricingService pricingService ,
             ICloudinaryService cloudinaryService,
-            ICreditService creditService
+            ICreditService creditService,
+            ITelegramService telegramService
             )
         {
             _context = context;
             _pricingService = pricingService;
             _cloudinaryService = cloudinaryService;
             _creditService = creditService;
+            _telegramService = telegramService;
         }
 
         public async Task<EventResponseDto> CreateEventAsync(EventCreateDto dto, Guid organizerId)
@@ -491,6 +494,33 @@ namespace Convene.Infrastructure.Services
                 }).ToList()
             };
         }
+
+
+
+        //max allowed to publish event/post on telegram 2 publish for one event
+        public async Task<EventTelegramDto?> PublishEventToTelegramAsync(Guid eventId)
+        {
+            var evt = await _context.Events.FirstOrDefaultAsync(e => e.Id == eventId);
+            if (evt == null) return null;
+
+            // Check if event can be posted
+            if (evt.TelegramPostCount >= 2) // change to 1 if only one post is allowed
+                throw new InvalidOperationException("This event has already been posted to Telegram the maximum allowed times.");
+
+            // Compile DTO for Telegram
+            var dto = await CompileEventTelegramDataAsync(eventId);
+            if (dto == null) return null;
+
+            // Send to Telegram
+            await _telegramService.SendEventToChannelAsync(dto);
+
+            // Increment the counter
+            evt.TelegramPostCount++;
+            await _context.SaveChangesAsync();
+
+            return dto;
+        }
+
 
 
 

@@ -154,7 +154,7 @@ namespace Convene.Infrastructure.Services
                 .AsNoTracking()
                 .FirstOrDefaultAsync(op => op.UserId == eventResult.OrganizerId);
 
-            var media = GetCoverImageFromJson(eventResult.Event.CoverImageUrl);
+            var media = GetMediaFromJson(eventResult.Event.CoverImageUrl); // CHANGED HERE
 
             var ticketDtos = new List<TicketTypeDto>();
             foreach (var t in eventResult.Tickets)
@@ -196,7 +196,7 @@ namespace Convene.Infrastructure.Services
                 EndDate = eventResult.Event.EndDate,
                 LowestTicketPrice = GetLowestTicketPrice(eventResult.Tickets),
                 TicketTypes = ticketDtos,
-                Media = media == null ? null : new EventMediaDto { CoverImage = media }
+                Media = media // CHANGED HERE - directly assign the EventMediaDto
             };
         }
 
@@ -253,6 +253,18 @@ namespace Convene.Infrastructure.Services
             {
                 var media = JsonSerializer.Deserialize<EventMediaDto>(coverImageUrl);
                 return media?.CoverImage;
+            }
+            catch { return null; }
+        }
+
+
+        // NEW: For EventDetailDto (needs full EventMediaDto)
+        private EventMediaDto? GetMediaFromJson(string? coverImageUrl)
+        {
+            if (string.IsNullOrWhiteSpace(coverImageUrl)) return null;
+            try
+            {
+                return JsonSerializer.Deserialize<EventMediaDto>(coverImageUrl);
             }
             catch { return null; }
         }

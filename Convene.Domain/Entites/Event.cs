@@ -26,7 +26,8 @@ namespace Convene.Domain.Entities
         public int TotalCapacity { get; set; } 
         public EventStatus Status { get; set; } = EventStatus.Draft;
 
-       
+        public int TelegramPostCount { get; set; } = 0;  //telegram post for one event count max 2 
+
         // Navigation properties
         public EventCategory? Category { get; set; }
 

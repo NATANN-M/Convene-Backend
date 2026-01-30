@@ -17,6 +17,7 @@ namespace Convene.Application.Interfaces
         List<PricingRuleResponseDto> GetDefaultPricingRules();
        
         Task<EventTelegramDto?> CompileEventTelegramDataAsync(Guid eventId);
-
+        //alternative publish to telegram method with publish count max 2
+        Task<EventTelegramDto?> PublishEventToTelegramAsync(Guid eventId);
     }
 }

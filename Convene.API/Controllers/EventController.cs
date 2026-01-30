@@ -103,16 +103,35 @@ namespace Convene.API.Controllers
         }
 
 
-        [HttpPost("post-event-Telgram/{eventId}")]
+        //[HttpPost("post-event-Telgram/{eventId}")]
+        //public async Task<IActionResult> PublishEventToTelegram(Guid eventId)
+        //{
+        //    var dto = await _eventService.CompileEventTelegramDataAsync(eventId);
+        //    if (dto == null)
+        //        return NotFound("Event not found");
+
+        //    await _telegramService.SendEventToChannelAsync(dto);
+        //    return Ok("Event posted to Telegram channel successfully");
+        //}
+
+
+        [HttpPost("post-event-Telegram/{eventId}")]
         public async Task<IActionResult> PublishEventToTelegram(Guid eventId)
         {
-            var dto = await _eventService.CompileEventTelegramDataAsync(eventId);
-            if (dto == null)
-                return NotFound("Event not found");
+            try
+            {
+                var dto = await _eventService.PublishEventToTelegramAsync(eventId);
+                if (dto == null)
+                    return NotFound("Event not found");
 
-            await _telegramService.SendEventToChannelAsync(dto);
-            return Ok("Event posted to Telegram channel successfully");
+                return Ok("Event posted to Telegram channel successfully");
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(ex.Message);
+            }
         }
+
 
     }
 }

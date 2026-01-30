@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Configuration;
+﻿using Microsoft.Extensions.Configuration;
 using Convene.Application.DTOs;
 using Convene.Application.DTOs.Event;
 using Convene.Application.Interfaces;
@@ -11,12 +11,14 @@ public class TelegramService : ITelegramService
     private readonly string _botToken;
     private readonly string _chatId;
     private readonly HttpClient _httpClient;
-    private readonly ILogger <TelegramService> _logger;
+    private readonly ILogger<TelegramService> _logger;
+    private readonly string _frontendUrl;
 
-    public TelegramService(IConfiguration config,ILogger<TelegramService> logger)
+    public TelegramService(IConfiguration config, ILogger<TelegramService> logger)
     {
         _botToken = config["Telegram:BotToken"];
         _chatId = config["Telegram:ChatId"];
+        _frontendUrl = config["FrontendUrl"];
         _httpClient = new HttpClient();
         _logger = logger;
     }
@@ -25,28 +27,36 @@ public class TelegramService : ITelegramService
     {
         if (dto == null) return;
 
+        // Build Google Maps URL from lat|lng
+        var mapUrl = BuildGoogleMapsUrl(dto.Location);
+
+        var eventUrl = $"{_frontendUrl}/";
+
         // Caption text
         string caption =
-            $"?? *{dto.Title}*\n\n" +
-            $"{dto.Description}\n\n" +
-            $"?? Location: {dto.Location}\n" +
-            $"?? Venue: {dto.Venue}\n" +
-            $"?? {dto.StartDate:MMM dd, yyyy HH:mm} - {dto.EndDate:MMM dd, yyyy HH:mm}\n" +
-            $"?? Tickets from: {dto.LowestTicketPrice} ETB\n" +
-            $"?? Category: {dto.Category}";
+      $"🎉 *{dto.Title}*\n\n" +
+      $"📝 *About the Event*\n" +
+      $"{dto.Description}\n\n" +
+      $"📍 *Location*\n" +
+      $"[View on Google Maps]({mapUrl})\n" +
+      $"🏛 Venue: {dto.Venue}\n\n" +
+      $"🗓 *Date & Time*\n" +
+      $"{dto.StartDate:MMM dd, yyyy HH:mm} → {dto.EndDate:MMM dd, yyyy HH:mm}\n\n" +
+      $"🎟 *Tickets*\n" +
+      $"From *{dto.LowestTicketPrice} ETB*\n\n" +
+      $"🏷 *Category*\n" +
+      $"{dto.Category}\n\n";
 
         // Create a single media group
         var allMedia = new List<object>();
-
-        // Track if we've added any media yet
         bool hasMedia = false;
 
-        // Add images to media group (images work fine with URLs)
+        // Add images
         if (dto.ImageUrls != null && dto.ImageUrls.Count > 0)
         {
             for (int i = 0; i < dto.ImageUrls.Count; i++)
             {
-                if (!hasMedia) // This is the first media item (gets the caption)
+                if (!hasMedia)
                 {
                     var mediaItem = new
                     {
@@ -72,7 +82,7 @@ public class TelegramService : ITelegramService
             }
         }
 
-        // For videos in media groups, we need to upload them first
+        // Upload videos and get file IDs
         List<string> videoFileIds = new List<string>();
         if (dto.VideoUrls != null && dto.VideoUrls.Count > 0)
         {
@@ -82,37 +92,28 @@ public class TelegramService : ITelegramService
 
                 try
                 {
-                    // Upload video to Telegram and get file_id
                     var fileId = await UploadVideoAndGetFileId(videoUrl);
                     if (!string.IsNullOrEmpty(fileId))
-                    {
                         videoFileIds.Add(fileId);
-                    }
-                    else
-                    {
-                        // If upload fails, skip this video
-                        continue;
-                    }
                 }
                 catch
                 {
-                    // If video upload fails, skip this video
                     continue;
                 }
             }
         }
 
-        // Add uploaded videos to media group using their file_id
+        // Add uploaded videos to media group
         foreach (var fileId in videoFileIds)
         {
             if (allMedia.Count >= 10) break;
 
-            if (!hasMedia) // This is the first media item (gets the caption)
+            if (!hasMedia)
             {
                 var videoItem = new
                 {
                     type = "video",
-                    media = fileId, // Use file_id instead of URL
+                    media = fileId,
                     caption = caption,
                     parse_mode = "Markdown"
                 };
@@ -124,13 +125,13 @@ public class TelegramService : ITelegramService
                 var videoItem = new
                 {
                     type = "video",
-                    media = fileId // Use file_id instead of URL
+                    media = fileId
                 };
                 allMedia.Add(videoItem);
             }
         }
 
-        // Send everything as ONE media group
+        // Send media group
         if (allMedia.Count > 0)
         {
             var payload = new
@@ -146,32 +147,34 @@ public class TelegramService : ITelegramService
 
             if (!response.IsSuccessStatusCode)
             {
-                var respContent = await response.Content.ReadAsStringAsync();
-
-              
-                // (images in gallery, videos separately)
                 await SendFallback(dto, caption);
                 return;
-
-                
-                 throw new Exception($"Telegram gallery post failed: {respContent}");
             }
+
+            await SendInlineButtonAsync(); // ✅ Send button after media
         }
         else
         {
-            // No media ? send text only
             await SendTextMessage(caption);
+            await SendInlineButtonAsync(); // ✅ Send button after text
         }
+    }
+
+    private static string BuildGoogleMapsUrl(string? location)
+    {
+        if (string.IsNullOrWhiteSpace(location))
+            return "https://maps.google.com";
+
+        var normalized = location.Replace("|", ",");
+        return $"https://www.google.com/maps?q={normalized}";
     }
 
     private async Task<string> UploadVideoAndGetFileId(string videoUrl)
     {
         try
         {
-            // Download the video
             var videoBytes = await _httpClient.GetByteArrayAsync(videoUrl);
 
-            // Upload to Telegram
             using var form = new MultipartFormDataContent();
             form.Add(new StringContent(_chatId), "chat_id");
             form.Add(new ByteArrayContent(videoBytes), "video", "video.mp4");
@@ -182,7 +185,6 @@ public class TelegramService : ITelegramService
 
             if (response.IsSuccessStatusCode)
             {
-                // Parse the response to get file_id
                 using var doc = JsonDocument.Parse(responseContent);
                 if (doc.RootElement.TryGetProperty("result", out var result) &&
                     result.TryGetProperty("video", out var video) &&
@@ -202,7 +204,6 @@ public class TelegramService : ITelegramService
 
     private async Task SendFallback(EventTelegramDto dto, string caption)
     {
-        // Fallback: Send images as gallery, videos separately (your original approach)
         if (dto.ImageUrls != null && dto.ImageUrls.Count > 0)
         {
             var mediaList = new List<object>();
@@ -211,23 +212,21 @@ public class TelegramService : ITelegramService
             {
                 if (i == 0)
                 {
-                    var mediaItem = new
+                    mediaList.Add(new
                     {
                         type = "photo",
                         media = dto.ImageUrls[i],
                         caption = caption,
                         parse_mode = "Markdown"
-                    };
-                    mediaList.Add(mediaItem);
+                    });
                 }
                 else
                 {
-                    var mediaItem = new
+                    mediaList.Add(new
                     {
                         type = "photo",
                         media = dto.ImageUrls[i]
-                    };
-                    mediaList.Add(mediaItem);
+                    });
                 }
             }
 
@@ -253,7 +252,6 @@ public class TelegramService : ITelegramService
             await SendTextMessage(caption);
         }
 
-        // Send videos separately
         if (dto.VideoUrls != null && dto.VideoUrls.Count > 0)
         {
             foreach (var videoUrl in dto.VideoUrls)
@@ -293,5 +291,37 @@ public class TelegramService : ITelegramService
             var respContent = await response.Content.ReadAsStringAsync();
             throw new Exception($"Telegram text post failed: {respContent}");
         }
+    }
+
+    private async Task SendInlineButtonAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_frontendUrl))
+            return;
+
+        var payload = new
+        {
+            chat_id = _chatId,
+            text = "👇 Open in browser",
+            reply_markup = new
+            {
+                inline_keyboard = new[]
+                {
+                    new[]
+                    {
+                        new
+                        {
+                            text = "🌐 Open Website",
+                            url = _frontendUrl
+                        }
+                    }
+                }
+            }
+        };
+
+        var json = JsonSerializer.Serialize(payload);
+        var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+        var url = $"https://api.telegram.org/bot{_botToken}/sendMessage";
+
+        await _httpClient.PostAsync(url, content);
     }
 }

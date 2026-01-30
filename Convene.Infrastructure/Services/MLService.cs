@@ -254,18 +254,25 @@ namespace Convene.Infrastructure.Services.Recommendation
 
             // Top categories
             var topCategories = interactions
-                .GroupBy(i => i.Category ?? "Unknown")
-                .OrderByDescending(g => g.Count())
-                .Take(10)
-                .ToDictionary(g => g.Key, g => g.Count());
+        .Where(i => !string.IsNullOrWhiteSpace(i.Category))
+        .GroupBy(i => i.Category!.Trim())
+        .OrderByDescending(g => g.Count())
+        .Take(10)
+        .ToDictionary(g => g.Key, g => g.Count());
+
+            if (!topCategories.Any())
+                topCategories["Unknown"] = interactions.Count;
+
 
             // Get top event IDs first
             var topEventIds = interactions
-                .GroupBy(i => i.EventId)
-                .OrderByDescending(g => g.Count())
-                .Take(10)
-                .Select(g => g.Key)
-                .ToList();
+    .Where(i => i.EventId != Guid.Empty)
+    .GroupBy(i => i.EventId)
+    .OrderByDescending(g => g.Count())
+    .Take(10)
+    .Select(g => g.Key)
+    .ToList();
+
 
             // Load event names for these IDs
             var eventNames = await _context.Events
@@ -275,7 +282,8 @@ namespace Convene.Infrastructure.Services.Recommendation
 
             // Create dictionary with event names
             var topEvents = interactions
-                .Where(i => topEventIds.Contains(i.EventId))
+    .Where(i => i.EventId != Guid.Empty && topEventIds.Contains(i.EventId))
+
                 .GroupBy(i => i.EventId)
                 .Select(g => new { EventId = g.Key, Count = g.Count() })
                 .OrderByDescending(x => x.Count)
