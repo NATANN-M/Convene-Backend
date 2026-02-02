@@ -270,7 +270,7 @@ namespace Convene.Application.Helpers.EmailTemplates
         <!-- Header Section -->
         <div class=""header"">
             <div class=""confirmation-badge"">Confirmed</div>
-            <h1>?? Booking Confirmed!</h1>
+            <h1> Booking Confirmed!</h1>
             <p>Your event experience awaits</p>
         </div>
         
@@ -308,24 +308,24 @@ namespace Convene.Application.Helpers.EmailTemplates
             
             <!-- Important Information -->
             <div class=""highlight-box"">
-                <h3>?? Save the Date</h3>
+                <h3> Save the Date</h3>
                 <p style=""color: #475569; margin-bottom: 15px;"">
                     Your tickets are now available. Make sure to arrive 30 minutes before the event starts.
                 </p>
                 <div class=""ticket-info"">
-                    <span>??</span>
+                    <span></span>
                     <span>e-Ticket • Mobile Friendly</span>
                 </div>
             </div>
             
             <!-- Action Button -->
             <a href=""{bookingLink}"" class=""action-button"">
-                ?? View My Tickets & Event Details
+                 View My Tickets & Event Details
             </a>
             
             <!-- Additional Information -->
             <div style=""background: #f0f9ff; padding: 20px; border-radius: 10px; margin: 25px 0;"">
-                <h4 style=""color: #0369a1; margin-bottom: 10px;"">?? Need Help?</h4>
+                <h4 style=""color: #0369a1; margin-bottom: 10px;""> Need Help?</h4>
                 <p style=""color: #475569; font-size: 14px; line-height: 1.5;"">
                     • Questions about the event? Contact the organizer<br>
                     • Can't find your tickets? Check your account dashboard<br>
@@ -349,15 +349,15 @@ namespace Convene.Application.Helpers.EmailTemplates
             
             <!-- Social Links -->
             <div class=""social-links"">
-                <a href=""#"" class=""social-icon"">??</a>
-                <a href=""#"" class=""social-icon"">??</a>
-                <a href=""#"" class=""social-icon"">??</a>
-                <a href=""#"" class=""social-icon"">??</a>
+                <a href=""#"" class=""social-icon""></a>
+                <a href=""#"" class=""social-icon""></a>
+                <a href=""#"" class=""social-icon""></a>
+                <a href=""#"" class=""social-icon""></a>
             </div>
             
             <div class=""contact-info"">
                 <p>Convene Inc. • 123 Event Street, City, Country</p>
-                <p>support@Convene.com • +1 (555) 123-4567</p>
+                <p> 0912345678</p>
                 <p style=""margin-top: 20px; font-size: 12px; color: #94a3b8;"">
                     This is an automated message. Please do not reply to this email.
                 </p>

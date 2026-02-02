@@ -24,7 +24,7 @@ namespace Convene.Application.EmailTemplates
             <div style=""background:rgba(255,255,255,0.2);display:inline-block;padding:8px 16px;border-radius:20px;margin-bottom:20px;border:1px solid rgba(255,255,255,0.3);"">
                 <span style=""color:white;font-weight:600;font-size:14px;"">? ACCOUNT APPROVED</span>
             </div>
-            <h1 style=""color:white;font-size:24px;font-weight:700;margin:0 0 10px 0;"">Congratulations! ??</h1>
+            <h1 style=""color:white;font-size:24px;font-weight:700;margin:0 0 10px 0;"">Congratulations! </h1>
             <p style=""color:rgba(255,255,255,0.9);font-size:16px;margin:0;"">Welcome to the Convene Organizer Community</p>
         </div>
         
@@ -32,7 +32,7 @@ namespace Convene.Application.EmailTemplates
         <div style=""padding:30px 20px;"">
             <!-- Welcome Message -->
             <div style=""text-align:center;margin-bottom:30px;"">
-                <div style=""font-size:48px;margin-bottom:20px;"">??</div>
+                <div style=""font-size:48px;margin-bottom:20px;""></div>
                 <h2 style=""color:#2d3748;font-size:22px;margin:0 0 15px 0;font-weight:700;"">Your Organizer Account is Live!</h2>
                 <p style=""color:#4a5568;font-size:16px;line-height:1.6;max-width:500px;margin:0 auto 20px auto;"">
                     We're thrilled to inform you that your organizer account has been approved. 
@@ -45,21 +45,21 @@ namespace Convene.Application.EmailTemplates
                 <tr>
                     <td width=""33%"" valign=""top"" style=""padding:10px;"">
                         <div style=""background:#f8fafc;border-radius:8px;padding:20px;text-align:center;border:1px solid #e2e8f0;"">
-                            <div style=""font-size:24px;margin-bottom:15px;"">??</div>
+                            <div style=""font-size:24px;margin-bottom:15px;""></div>
                             <h3 style=""color:#2d3748;font-size:16px;margin:0 0 10px 0;font-weight:600;"">Create Events</h3>
                             <p style=""color:#64748b;font-size:13px;line-height:1.5;margin:0;"">Design and publish events with our intuitive event creation tools</p>
                         </div>
                     </td>
                     <td width=""33%"" valign=""top"" style=""padding:10px;"">
                         <div style=""background:#f8fafc;border-radius:8px;padding:20px;text-align:center;border:1px solid #e2e8f0;"">
-                            <div style=""font-size:24px;margin-bottom:15px;"">??</div>
+                            <div style=""font-size:24px;margin-bottom:15px;""></div>
                             <h3 style=""color:#2d3748;font-size:16px;margin:0 0 10px 0;font-weight:600;"">Manage Tickets</h3>
                             <p style=""color:#64748b;font-size:13px;line-height:1.5;margin:0;"">Handle ticket sales, attendee lists, and check-ins seamlessly</p>
                         </div>
                     </td>
                     <td width=""33%"" valign=""top"" style=""padding:10px;"">
                         <div style=""background:#f8fafc;border-radius:8px;padding:20px;text-align:center;border:1px solid #e2e8f0;"">
-                            <div style=""font-size:24px;margin-bottom:15px;"">??</div>
+                            <div style=""font-size:24px;margin-bottom:15px;""></div>
                             <h3 style=""color:#2d3748;font-size:16px;margin:0 0 10px 0;font-weight:600;"">Advanced Analytics</h3>
                             <p style=""color:#64748b;font-size:13px;line-height:1.5;margin:0;"">Track your event performance with detailed insights</p>
                         </div>
@@ -74,7 +74,7 @@ namespace Convene.Application.EmailTemplates
                     Start building your event now and reach thousands of potential attendees. 
                     It only takes a few minutes to set up!
                 </p>
-                <a href=""https://Convene.com/dashboard/events/create"" style=""display:inline-block;background:#4facfe;color:white;text-decoration:none;padding:16px 32px;border-radius:25px;font-weight:700;font-size:16px;"">Create Your First Event</a>
+                <a href=""https://cozy-custard-a26455.netlify.app"" style=""display:inline-block;background:#4facfe;color:white;text-decoration:none;padding:16px 32px;border-radius:25px;font-weight:700;font-size:16px;"">Create Your First Event</a>
             </div>
         </div>
         
@@ -87,11 +87,11 @@ namespace Convene.Application.EmailTemplates
             </p>
             
             <div style=""background:rgba(255,255,255,0.05);padding:20px;border-radius:8px;margin:20px 0;"">
-                <p style=""color:white;margin:0 0 10px 0;"">?? Email: 
+                <p style=""color:white;margin:0 0 10px 0;""> Email: 
                     <a href=""mailto:support@Convene.com"" style=""color:#4facfe;text-decoration:none;font-weight:600;"">support@Convene.com</a>
                 </p>
-                <p style=""color:white;margin:0;"">?? Phone: 
-                    <a href=""tel:+15551234567"" style=""color:#4facfe;text-decoration:none;font-weight:600;"">+1 (555) 123-4567</a>
+                <p style=""color:white;margin:0;""> Phone: 
+                    <a href=""tel:+0912345678"" style=""color:#4facfe;text-decoration:none;font-weight:600;"">0912345678</a>
                 </p>
             </div>
             
@@ -516,9 +516,9 @@ namespace Convene.Application.EmailTemplates
     <div class=""email-container"">
         <!-- Header -->
         <div class=""header"">
-            <div class=""header-icon"">??</div>
+            <div class=""header-icon""></div>
             <div class=""status-badge"">
-                <span>?? ACCOUNT STATUS UPDATE</span>
+                <span> ACCOUNT STATUS UPDATE</span>
             </div>
             <h1>Organizer Application Review</h1>
             <p>Convene - Creating Memorable Experiences</p>
@@ -566,7 +566,7 @@ namespace Convene.Application.EmailTemplates
             
             <!-- Improvement Suggestions -->
             <div class=""suggestions-section"">
-                <h3>?? Suggestions for Improvement</h3>
+                <h3> Suggestions for Improvement</h3>
                 <p style=""color: #475569; margin-bottom: 20px; font-size: 14px;"">
                     Based on our review, here are some areas you might consider improving:
                 </p>
