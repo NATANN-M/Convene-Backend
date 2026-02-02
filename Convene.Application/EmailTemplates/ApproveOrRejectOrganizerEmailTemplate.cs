@@ -74,7 +74,7 @@ namespace Convene.Application.EmailTemplates
                     Start building your event now and reach thousands of potential attendees. 
                     It only takes a few minutes to set up!
                 </p>
-                <a href=""https://cozy-custard-a26455.netlify.app"" style=""display:inline-block;background:#4facfe;color:white;text-decoration:none;padding:16px 32px;border-radius:25px;font-weight:700;font-size:16px;"">Create Your First Event</a>
+                <a href=""https://curious-buttercream-1ddd3a.netlify.app/"" style=""display:inline-block;background:#4facfe;color:white;text-decoration:none;padding:16px 32px;border-radius:25px;font-weight:700;font-size:16px;"">Create Your First Event</a>
             </div>
         </div>
         
