@@ -7,7 +7,9 @@ It provides a robust backend API supporting features like ticketing, payments, r
 
 -   **Backend API (Render):**[ [[https://convene-backend-7whb.onrender.com/swagger](https://convene-backend-7whb.onrender.com/swagger)]
 -   **Frontend Client (Netlify):** [https://curious-buttercream-1ddd3a.netlify.app/](https://curious-buttercream-1ddd3a.netlify.app/)
-
+## Test Credentials
+ - Super Admin Email:admin@convene.com  Password:Admin@123
+ - Organizer  Email:organizer@gmail.com  Password:123456
 
 ##  Features
 
